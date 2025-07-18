@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,101 +10,97 @@
       color: white;
       margin: 0;
       padding: 20px;
-    }
+    }h1 {
+  text-align: center;
+  color: gold;
+}
 
-    h1 {
-      text-align: center;
-      color: gold;
-    }
+.product-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 2rem;
+}
 
-    .product-list {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 2rem;
-      margin-top: 2rem;
-    }
+.product {
+  background: #222;
+  padding: 1rem;
+  border-radius: 10px;
+  width: 250px;
+  text-align: center;
+}
 
-    .product {
-      background: #222;
-      padding: 1rem;
-      border-radius: 10px;
-      width: 250px;
-      text-align: center;
-    }
+.product img {
+  width: 100%;
+  border-radius: 10px;
+}
 
-    .product img {
-      width: 100%;
-      border-radius: 10px;
-    }
+.product input[type=number] {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  box-sizing: border-box;
+}
 
-    .product input[type=number] {
-      width: 100%;
-      padding: 0.5rem;
-      margin-top: 0.5rem;
-      box-sizing: border-box;
-    }
+.product button {
+  background: gold;
+  border: none;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  width: 100%;
+  font-weight: bold;
+  cursor: pointer;
+}
 
-    .product button {
-      background: gold;
-      border: none;
-      padding: 0.75rem;
-      margin-top: 0.5rem;
-      width: 100%;
-      font-weight: bold;
-      cursor: pointer;
-    }
+#cart {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: #111;
+  padding: 0.5rem;
+  border: 1px solid gold;
+  border-radius: 10px;
+  max-width: 220px;
+  font-size: 0.9rem;
+  z-index: 9999;
+}
 
-    #cart {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #111;
-      padding: 1rem;
-      border: 1px solid gold;
-      border-radius: 10px;
-      max-width: 300px;
-    }
+#cart h2 {
+  margin-top: 0;
+  color: gold;
+  font-size: 1rem;
+}
 
-    #cart h2 {
-      margin-top: 0;
-      color: gold;
-    }
+#cart ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
 
-    #cart ul {
-      list-style: none;
-      padding: 0;
-    }
+#cart li {
+  margin-bottom: 6px;
+}
 
-    #cart li {
-      margin-bottom: 10px;
-    }
+#checkout {
+  background: darkgreen;
+  color: white;
+  font-weight: bold;
+  padding: 0.4rem;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
 
-    #checkout {
-      background: darkgreen;
-      color: white;
-      font-weight: bold;
-      padding: 0.5rem;
-      width: 100%;
-      border: none;
-      cursor: pointer;
-      margin-top: 10px;
-    }
   </style>
 </head>
-<body>
-
-  <h1>Catfish Empire™ Sunglasses - $14.99 + Tax</h1>
-
-  <div class="product-list" id="product-list"></div>
-
-  <div id="cart">
+<body>  <h1>Catfish Empire™ Sunglasses - $14.99 + Tax</h1>  <div class="product-list" id="product-list"></div>  <div id="cart">
     <h2>Your Cart</h2>
     <ul id="cart-items"></ul>
     <button id="checkout">Checkout</button>
-  </div>
-
-  <script>
+  </div>  <script>
     const products = [
       { color: "Blue", image: "sunglasses-blue.jpg" },
       { color: "Green", image: "sunglasses-green.jpg" },
@@ -167,7 +162,5 @@
     });
 
     updateCart();
-  </script>
-
-</body>
+  </script></body>
 </html>
