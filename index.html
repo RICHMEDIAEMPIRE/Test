@@ -146,5 +146,20 @@
 
     updateCartCount();
   </script>
+  <script>
+  async function checkout(quantity) {
+    const response = await fetch('http://localhost:4242/create-checkout-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ quantity: quantity })
+    });
+
+    const data = await response.json();
+    window.location.href = data.url;
+  }
+</script>
+
 </body>
 </html>
