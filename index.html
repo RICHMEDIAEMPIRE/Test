@@ -73,6 +73,17 @@
       font-weight: bold;
       cursor: pointer;
     }
+
+    .checkout-btn {
+      background: gold;
+      border: none;
+      padding: 1rem 2rem;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 3rem auto;
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -84,6 +95,10 @@
   <h1>Catfish Empire™ Sunglasses - $14.99 + Tax</h1>
 
   <div class="product-list" id="product-list"></div>
+
+  <div>
+    <button class="checkout-btn" onclick="checkoutCart()">Checkout</button>
+  </div>
 
   <script>
     const products = [
@@ -145,21 +160,33 @@
     });
 
     updateCartCount();
+
+    function checkoutCart() {
+      const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
+      if (totalQty < 1) {
+        alert("Your cart is empty.");
+        return;
+      }
+
+      fetch("http://localhost:4242/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: totalQty })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert("Error creating checkout session");
+          console.log(data);
+        }
+      })
+      .catch(err => {
+        alert("Checkout failed.");
+        console.error(err);
+      });
+    }
   </script>
-  <script>
-  async function checkout(quantity) {
-    const response = await fetch('http://localhost:4242/create-checkout-session', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ quantity: quantity })
-    });
-
-    const data = await response.json();
-    window.location.href = data.url;
-  }
-</script>
-
 </body>
 </html>
