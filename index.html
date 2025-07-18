@@ -101,6 +101,9 @@
   </div>
 
   <script>
+    // CHANGE THIS URL LATER TO YOUR RENDER LINK
+    const BACKEND_URL = "http://localhost:4242";
+
     const products = [
       { color: "Blue", image: "sunglasses-blue.jpg" },
       { color: "Green", image: "sunglasses-green.jpg" },
@@ -168,7 +171,7 @@
         return;
       }
 
-      fetch("http://localhost:4242/create-checkout-session", {
+      fetch(`${BACKEND_URL}/create-checkout-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quantity: totalQty })
