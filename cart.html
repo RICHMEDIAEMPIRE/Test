@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -87,57 +88,62 @@
     </div>
     <button id="checkout">Checkout</button>
   </main>
+
   <script>
-    const cartList = document.getElementById("cart-list");
-    const subtotalEl = document.getElementById("subtotal");
-    let cart = JSON.parse(localStorage.getItem("cart")) || [];function updateCartPage() {
-  cartList.innerHTML = "";
-  let subtotal = 0;
+    let cart = JSON.parse(localStorage.getItem("cart")) || [];
 
-  if (cart.length === 0) {
-    cartList.innerHTML = "<li>Your cart is empty.</li>";
-    subtotalEl.textContent = "0.00";
-    return;
-  }
+    function updateCartPage() {
+      const cartList = document.getElementById("cart-list");
+      const subtotalEl = document.getElementById("subtotal");
 
-  cart.forEach((item, index) => {
-    const li = document.createElement("li");
-    const total = (item.qty * 14.99).toFixed(2);
-    subtotal += parseFloat(total);
-    li.innerHTML = `
-      ${item.qty}x ${item.color} - $${total}
-      <button class="remove" onclick="removeItem(${index})">Remove</button>
-    `;
-    cartList.appendChild(li);
-  });
+      cartList.innerHTML = "";
+      let subtotal = 0;
 
-  subtotalEl.textContent = subtotal.toFixed(2);
-  localStorage.setItem("cart", JSON.stringify(cart));
-}
+      if (cart.length === 0) {
+        cartList.innerHTML = "<li>Your cart is empty.</li>";
+        subtotalEl.textContent = "0.00";
+        return;
+      }
 
-function removeItem(index) {
-  cart.splice(index, 1);
-  updateCartPage();
-}
+      cart.forEach((item, index) => {
+        const itemTotal = (item.qty * 14.99).toFixed(2);
+        subtotal += parseFloat(itemTotal);
 
-document.getElementById("checkout").addEventListener("click", () => {
-  if (cart.length === 0) {
-    alert("Your cart is empty.");
-    return;
-  }
-  fetch("/.netlify/functions/checkout", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items: cart })
-  })
-  .then(res => res.json())
-  .then(data => {
-    window.location = data.url;
-  });
-});
+        const li = document.createElement("li");
+        li.innerHTML = `
+          ${item.qty}x ${item.color} - $${itemTotal}
+          <button class="remove" onclick="removeItem(${index})">Remove</button>
+        `;
+        cartList.appendChild(li);
+      });
 
-updateCartPage();
+      subtotalEl.textContent = subtotal.toFixed(2);
+      localStorage.setItem("cart", JSON.stringify(cart));
+    }
 
+    function removeItem(index) {
+      cart.splice(index, 1);
+      updateCartPage();
+    }
+
+    document.getElementById("checkout").addEventListener("click", () => {
+      if (cart.length === 0) {
+        alert("Your cart is empty.");
+        return;
+      }
+
+      fetch("/.netlify/functions/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart })
+      })
+      .then(res => res.json())
+      .then(data => {
+        window.location = data.url;
+      });
+    });
+
+    updateCartPage();
   </script>
 </body>
 </html>
