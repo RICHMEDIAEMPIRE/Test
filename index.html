@@ -95,7 +95,8 @@
       { color: "Brown", image: "sunglasses-brown.jpg" }
     ];
 
-    let cart = JSON.parse(localStorage.getItem("cart")) || [];
+    let cart = JSON.parse(localStorage.getItem("cart"));
+    if (!Array.isArray(cart)) cart = [];
 
     function updateLocalCart() {
       localStorage.setItem("cart", JSON.stringify(cart));
