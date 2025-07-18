@@ -9,10 +9,27 @@
       background: black;
       color: white;
       margin: 0;
-      padding: 20px;
-    }h1 {
+      padding: 0;
+    }nav {
+  background: #111;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid gold;
+}
+
+nav a {
+  color: gold;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+h1 {
   text-align: center;
   color: gold;
+  margin-top: 1rem;
 }
 
 .product-list {
@@ -21,6 +38,7 @@
   justify-content: center;
   gap: 2rem;
   margin-top: 2rem;
+  padding: 0 20px 20px;
 }
 
 .product {
@@ -55,7 +73,7 @@
 
 #cart {
   position: fixed;
-  top: 20px;
+  top: 70px;
   left: 20px;
   background: #111;
   padding: 0.5rem;
@@ -96,7 +114,10 @@
 
   </style>
 </head>
-<body>  <h1>Catfish Empire™ Sunglasses - $14.99 + Tax</h1>  <div class="product-list" id="product-list"></div>  <div id="cart">
+<body>  <nav>
+    <a href="https://catfishempire.com">Home</a>
+    <a href="#cart">Cart</a>
+  </nav>  <h1>Catfish Empire™ Sunglasses - $14.99 + Tax</h1>  <div class="product-list" id="product-list"></div>  <div id="cart">
     <h2>Your Cart</h2>
     <ul id="cart-items"></ul>
     <button id="checkout">Checkout</button>
