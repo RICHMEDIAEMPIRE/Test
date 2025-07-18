@@ -90,9 +90,6 @@
   </main>
 
   <script>
-    // CHANGE THIS TO YOUR RENDER URL WHEN DEPLOYED
-    const BACKEND_URL = "http://localhost:4242";
-
     let cart = JSON.parse(localStorage.getItem("cart"));
     if (!Array.isArray(cart)) cart = [];
 
@@ -148,23 +145,23 @@
 
       const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
 
-      fetch(`${BACKEND_URL}/create-checkout-session`, {
+      fetch("http://localhost:4242/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: totalQty })  // Send full cart later if backend supports
+        body: JSON.stringify({ quantity: totalQty })
       })
       .then(res => res.json())
       .then(data => {
         if (data.url) {
-          window.location.href = data.url;
+          window.location = data.url;
         } else {
-          alert("Checkout error");
+          alert("Checkout session failed to create.");
           console.log(data);
         }
       })
       .catch(err => {
-        console.error("Checkout failed:", err);
-        alert("Something went wrong.");
+        console.error("Error:", err);
+        alert("Failed to connect to payment server.");
       });
     });
 
