@@ -78,7 +78,7 @@
 <body>
   <nav>
     <a href="https://catfishempire.com">Home</a>
-    <a href="cart.html">Cart</a>
+    <a href="cart.html">Cart (<span id="cart-count">0</span>)</a>
   </nav>
 
   <h1>Catfish Empire™ Sunglasses - $14.99 + Tax</h1>
@@ -102,12 +102,19 @@
       localStorage.setItem("cart", JSON.stringify(cart));
     }
 
+    function updateCartCount() {
+      const total = cart.reduce((sum, item) => sum + item.qty, 0);
+      const countEl = document.getElementById("cart-count");
+      if (countEl) countEl.textContent = total;
+    }
+
     function addToCart(color, qty) {
       if (!qty || qty < 1) return;
       const existing = cart.find(item => item.color === color);
       if (existing) existing.qty += qty;
       else cart.push({ color, qty });
       updateLocalCart();
+      updateCartCount();
       alert(`${qty}x ${color} sunglasses added to cart`);
     }
 
@@ -136,6 +143,8 @@
     products.forEach(p => {
       document.getElementById("product-list").appendChild(createProductCard(p));
     });
+
+    updateCartCount();
   </script>
 </body>
 </html>
