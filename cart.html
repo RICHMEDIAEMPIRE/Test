@@ -143,12 +143,10 @@
         return;
       }
 
-      const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
-
       fetch("http://localhost:4242/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: totalQty })
+        body: JSON.stringify({ items: cart })
       })
       .then(res => res.json())
       .then(data => {
