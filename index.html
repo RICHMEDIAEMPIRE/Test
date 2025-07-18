@@ -71,52 +71,51 @@ h1 {
   cursor: pointer;
 }
 
-#cart {
-  position: fixed;
-  top: 70px;
-  left: 20px;
+#cart-section {
+  max-width: 500px;
+  margin: 40px auto;
   background: #111;
-  padding: 0.5rem;
-  border: 1px solid gold;
+  padding: 1rem;
   border-radius: 10px;
-  max-width: 220px;
-  font-size: 0.9rem;
-  z-index: 9999;
+  border: 1px solid gold;
 }
 
-#cart h2 {
+#cart-section h2 {
   margin-top: 0;
   color: gold;
-  font-size: 1rem;
 }
 
-#cart ul {
+#cart-items {
   list-style: none;
   padding: 0;
-  margin: 0;
 }
 
-#cart li {
-  margin-bottom: 6px;
+#cart-items li {
+  margin-bottom: 10px;
 }
 
 #checkout {
   background: darkgreen;
   color: white;
   font-weight: bold;
-  padding: 0.4rem;
+  padding: 0.6rem;
   width: 100%;
   border: none;
   cursor: pointer;
-  margin-top: 8px;
-  font-size: 0.9rem;
+  margin-top: 10px;
+  font-size: 1rem;
 }
 
   </style>
 </head>
 <body>  <nav>
     <a href="https://catfishempire.com">Home</a>
-    <a href="#cart-section">Cart</a>  </nav>  <h1>Catfish Empire™ Sunglasses - $14.99 + Tax</h1>  <div class="product-list" id="product-list"></div>  <script>
+    <a href="#cart-section">Cart</a>
+  </nav>  <h1>Catfish Empire™ Sunglasses - $14.99 + Tax</h1>  <div class="product-list" id="product-list"></div>  <div id="cart-section">
+    <h2>Your Cart</h2>
+    <ul id="cart-items"></ul>
+    <button id="checkout">Checkout</button>
+  </div>  <script>
     const products = [
       { color: "Blue", image: "sunglasses-blue.jpg" },
       { color: "Green", image: "sunglasses-green.jpg" },
@@ -131,7 +130,13 @@ h1 {
     function updateCart() {
       const list = document.getElementById("cart-items");
       list.innerHTML = "";
-      cart.forEach((item, index) => {
+      if (cart.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "Your cart is empty.";
+        list.appendChild(li);
+        return;
+      }
+      cart.forEach((item) => {
         const li = document.createElement("li");
         li.textContent = `${item.qty}x ${item.color}`;
         list.appendChild(li);
@@ -140,6 +145,7 @@ h1 {
     }
 
     function addToCart(color, qty) {
+      if (!qty || qty < 1) return;
       const existing = cart.find(item => item.color === color);
       if (existing) existing.qty += qty;
       else cart.push({ color, qty });
@@ -165,7 +171,10 @@ h1 {
     });
 
     document.getElementById("checkout").addEventListener("click", () => {
-      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      if (cart.length === 0) {
+        alert("Your cart is empty.");
+        return;
+      }
       fetch("/.netlify/functions/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
