@@ -111,6 +111,16 @@
       alert(`${qty}x ${color} sunglasses added to cart`);
     }
 
+    function handleAdd(color) {
+      const qtyInput = document.getElementById(`qty-${color}`);
+      const qty = parseInt(qtyInput.value);
+      if (!qty || qty < 1) {
+        alert("Please enter a valid quantity.");
+        return;
+      }
+      addToCart(color, qty);
+    }
+
     function createProductCard(product) {
       const div = document.createElement("div");
       div.className = "product";
@@ -118,9 +128,7 @@
         <img src="${product.image}" alt="${product.color} Sunglasses" />
         <h3>${product.color}</h3>
         <input type="number" min="1" value="1" id="qty-${product.color}" />
-        <button onclick="addToCart('${product.color}', parseInt(document.getElementById('qty-${product.color}').value))">
-          Add to Cart
-        </button>
+        <button onclick="handleAdd('${product.color}')">Add to Cart</button>
       `;
       return div;
     }
