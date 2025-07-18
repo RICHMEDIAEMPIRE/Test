@@ -90,7 +90,8 @@
   </main>
 
   <script>
-    let cart = JSON.parse(localStorage.getItem("cart")) || [];
+    let cart = JSON.parse(localStorage.getItem("cart"));
+    if (!Array.isArray(cart)) cart = [];
 
     function updateCartPage() {
       const cartList = document.getElementById("cart-list");
@@ -100,6 +101,7 @@
       let subtotal = 0;
 
       if (cart.length === 0) {
+        localStorage.setItem("cart", JSON.stringify([]));
         cartList.innerHTML = "<li>Your cart is empty.</li>";
         subtotalEl.textContent = "0.00";
         return;
@@ -123,6 +125,7 @@
 
     function removeItem(index) {
       cart.splice(index, 1);
+      localStorage.setItem("cart", JSON.stringify(cart));
       updateCartPage();
     }
 
