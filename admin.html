@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel | Catfish Empire</title>
   <style>
     body {
       background: #111;
@@ -11,38 +11,32 @@
       font-family: Arial, sans-serif;
       padding: 2rem;
     }
-    h1, h2 {
-      color: gold;
+    input, select, button {
+      padding: 8px;
+      margin: 6px 0;
+      font-size: 1rem;
+      border-radius: 4px;
     }
-    label {
-      display: block;
-      margin-top: 1rem;
-    }
-    input, select {
-      padding: 0.5rem;
-      margin-top: 0.5rem;
+    select, input {
       width: 200px;
     }
     button {
-      margin-top: 1rem;
-      padding: 0.5rem 1rem;
       background: gold;
       border: none;
-      font-weight: bold;
       cursor: pointer;
     }
-    table {
-      margin-top: 2rem;
-      width: 100%;
-      border-collapse: collapse;
+    .hidden {
+      display: none;
     }
-    th, td {
-      padding: 0.5rem;
-      border: 1px solid #555;
+    .inventory-list {
+      margin-top: 1rem;
+      padding: 10px;
+      background: #222;
+      border-radius: 8px;
+      max-width: 300px;
     }
-    #inventory-status {
-      margin-top: 0.5rem;
-      color: lightgreen;
+    .inventory-list p {
+      margin: 0.5rem 0;
     }
   </style>
 </head>
@@ -50,115 +44,113 @@
   <h1>Admin Login</h1>
 
   <div id="login-section">
-    <label>Username: <input type="text" id="username" /></label>
-    <label>Password: <input type="password" id="password" /></label>
+    <input type="text" id="username" placeholder="Username"/><br/>
+    <input type="password" id="password" placeholder="Password"/><br/>
     <button onclick="login()">Login</button>
-    <p id="login-error" style="color: red;"></p>
   </div>
 
-  <div id="admin-panel" style="display: none;">
-    <h2>Update Inventory</h2>
-    <label>
-      Color:
-      <select id="color-select">
-        <option>Blue</option>
-        <option>Green</option>
-        <option>Red</option>
-        <option>Silver</option>
-        <option>Black</option>
-        <option>Brown</option>
-      </select>
-    </label>
-    <label>New Quantity: <input type="number" id="new-qty" value="1" /></label>
-    <button onclick="updateInventory()">Update Inventory</button>
-    <p id="inventory-status"></p>
-    <button onclick="logout()">Logout</button>
+  <div id="admin-panel" class="hidden">
+    <h2>Inventory</h2>
 
-    <h2>Current Inventory</h2>
-    <table>
-      <thead>
-        <tr><th>Color</th><th>Quantity</th></tr>
-      </thead>
-      <tbody id="inventory-table"></tbody>
-    </table>
+    <label>Color:
+      <select id="color">
+        <option value="Blue">Blue</option>
+        <option value="Green">Green</option>
+        <option value="Red">Red</option>
+        <option value="Silver">Silver</option>
+        <option value="Black">Black</option>
+        <option value="Brown">Brown</option>
+      </select>
+    </label><br/>
+
+    <label>Qty:
+      <input type="number" id="qty" min="0"/>
+    </label><br/>
+
+    <button onclick="updateInventory()">Update Inventory</button>
+    <p id="message"></p>
+
+    <div class="inventory-list" id="inventory-display">
+      <h3>Current Inventory</h3>
+    </div>
+
+    <button onclick="logout()">Logout</button>
   </div>
 
   <script>
-    const BACKEND_URL = "http://localhost:4242"; // change to your Render URL later
+    const backendURL = "http://localhost:4242"; // change if deploying
 
-    async function login() {
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
-      const res = await fetch(`${BACKEND_URL}/login`, {
+    function login() {
+      fetch(`${backendURL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({
+          username: document.getElementById("username").value,
+          password: document.getElementById("password").value
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          document.getElementById("login-section").classList.add("hidden");
+          document.getElementById("admin-panel").classList.remove("hidden");
+          fetchInventory();
+        } else {
+          alert("Login failed");
+        }
       });
-
-      if (res.ok) {
-        document.getElementById("login-section").style.display = "none";
-        document.getElementById("admin-panel").style.display = "block";
-        loadInventory();
-      } else {
-        document.getElementById("login-error").textContent = "Invalid login";
-      }
     }
 
-    async function logout() {
-      await fetch(`${BACKEND_URL}/logout`, {
-        method: "POST",
-        credentials: "include"
-      });
-      location.reload();
-    }
-
-    async function loadInventory() {
-      const res = await fetch(`${BACKEND_URL}/inventory`, {
+    function fetchInventory() {
+      fetch(`${backendURL}/inventory`, {
         method: "GET",
         credentials: "include"
+      })
+      .then(res => res.json())
+      .then(data => {
+        const display = document.getElementById("inventory-display");
+        display.innerHTML = `<h3>Current Inventory</h3>`;
+        for (const [color, qty] of Object.entries(data)) {
+          const p = document.createElement("p");
+          p.textContent = `${color}: ${qty}`;
+          display.appendChild(p);
+        }
       });
-
-      const table = document.getElementById("inventory-table");
-      table.innerHTML = "";
-
-      if (res.ok) {
-        const data = await res.json();
-        Object.entries(data).forEach(([color, qty]) => {
-          const row = document.createElement("tr");
-          row.innerHTML = `<td>${color}</td><td>${qty}</td>`;
-          table.appendChild(row);
-        });
-      } else {
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>error</td><td>Not logged in</td>`;
-        table.appendChild(row);
-      }
     }
 
-    async function updateInventory() {
-      const color = document.getElementById("color-select").value;
-      const qty = parseInt(document.getElementById("new-qty").value);
-      const status = document.getElementById("inventory-status");
+    function updateInventory() {
+      const color = document.getElementById("color").value;
+      const qty = parseInt(document.getElementById("qty").value);
 
-      if (!qty || qty < 0) {
-        status.textContent = "Invalid quantity.";
+      if (!color || isNaN(qty)) {
+        alert("Please fill out both fields.");
         return;
       }
 
-      const res = await fetch(`${BACKEND_URL}/inventory`, {
+      fetch(`${backendURL}/inventory`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ color, qty })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("message").textContent = data.success
+          ? "Inventory updated successfully"
+          : "Failed to update inventory";
+        fetchInventory(); // refresh display
       });
+    }
 
-      if (res.ok) {
-        status.textContent = "Inventory updated";
-        loadInventory();
-      } else {
-        status.textContent = "Update failed";
-      }
+    function logout() {
+      fetch(`${backendURL}/logout`, {
+        method: "POST",
+        credentials: "include"
+      }).then(() => {
+        document.getElementById("admin-panel").classList.add("hidden");
+        document.getElementById("login-section").classList.remove("hidden");
+      });
     }
   </script>
 </body>
