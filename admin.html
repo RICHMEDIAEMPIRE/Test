@@ -28,6 +28,19 @@
     .hidden {
       display: none;
     }
+    table {
+      margin-top: 2rem;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #444;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background: #222;
+    }
   </style>
 </head>
 <body>
@@ -51,17 +64,25 @@
       </select>
     </label><br />
 
-    <label for="qty">Qty:
+    <label for="qty">New Quantity:
       <input type="number" id="qty" />
     </label><br />
 
     <button onclick="updateInventory()">Update Inventory</button>
     <p id="message"></p>
     <button onclick="logout()">Logout</button>
+
+    <h2>Current Inventory</h2>
+    <table id="inventory-table">
+      <thead>
+        <tr><th>Color</th><th>Quantity</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
 
   <script>
-    const backendURL = "http://localhost:4242"; // Change to deployed backend if needed
+    const backendURL = "http://localhost:4242"; // Replace with deployed backend if needed
 
     function login() {
       fetch(`${backendURL}/login`, {
@@ -78,9 +99,26 @@
         if (data.success) {
           document.getElementById("login-section").classList.add("hidden");
           document.getElementById("admin-panel").classList.remove("hidden");
+          fetchInventory();
         } else {
           alert("Login failed");
         }
+      });
+    }
+
+    function fetchInventory() {
+      fetch(`${backendURL}/inventory`, {
+        credentials: "include"
+      })
+      .then(res => res.json())
+      .then(data => {
+        const tbody = document.querySelector("#inventory-table tbody");
+        tbody.innerHTML = "";
+        Object.entries(data).forEach(([color, qty]) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td>${color}</td><td>${qty}</td>`;
+          tbody.appendChild(row);
+        });
       });
     }
 
@@ -97,6 +135,7 @@
       .then(res => res.json())
       .then(data => {
         document.getElementById("message").textContent = data.message || "Inventory updated";
+        fetchInventory();
       });
     }
 
