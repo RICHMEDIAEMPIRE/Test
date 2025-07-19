@@ -101,7 +101,6 @@
   </div>
 
   <script>
-    // CHANGE THIS URL LATER TO YOUR RENDER LINK
     const BACKEND_URL = "http://localhost:4242";
 
     const products = [
@@ -113,6 +112,7 @@
       { color: "Brown", image: "sunglasses-brown.jpg" }
     ];
 
+    let inventory = {};
     let cart = JSON.parse(localStorage.getItem("cart"));
     if (!Array.isArray(cart)) cart = [];
 
@@ -128,9 +128,21 @@
 
     function addToCart(color, qty) {
       if (!qty || qty < 1) return;
+      if (inventory[color] === undefined || qty > inventory[color]) {
+        alert(`Only ${inventory[color] || 0} ${color} in stock.`);
+        return;
+      }
+
       const existing = cart.find(item => item.color === color);
-      if (existing) existing.qty += qty;
-      else cart.push({ color, qty });
+      if (existing) {
+        if (existing.qty + qty > inventory[color]) {
+          alert(`Only ${inventory[color] - existing.qty} more ${color} available.`);
+          return;
+        }
+        existing.qty += qty;
+      } else {
+        cart.push({ color, qty });
+      }
       updateLocalCart();
       updateCartCount();
       alert(`${qty}x ${color} sunglasses added to cart`);
@@ -149,24 +161,35 @@
     function createProductCard(product) {
       const div = document.createElement("div");
       div.className = "product";
+      const stockQty = inventory[product.color] ?? "Loading...";
       div.innerHTML = `
         <img src="${product.image}" alt="${product.color} Sunglasses" />
         <h3>${product.color}</h3>
+        <p>In Stock: <span id="stock-${product.color}">${stockQty}</span></p>
         <input type="number" min="1" value="1" id="qty-${product.color}" />
         <button onclick="handleAdd('${product.color}')">Add to Cart</button>
       `;
       return div;
     }
 
-    products.forEach(p => {
-      document.getElementById("product-list").appendChild(createProductCard(p));
-    });
-
-    updateCartCount();
+    function loadInventoryAndRender() {
+      fetch(`${BACKEND_URL}/inventory`, { credentials: "include" })
+        .then(res => res.json())
+        .then(data => {
+          inventory = data;
+          const list = document.getElementById("product-list");
+          list.innerHTML = "";
+          products.forEach(p => {
+            list.appendChild(createProductCard(p));
+          });
+        })
+        .catch(err => {
+          console.error("Failed to load inventory:", err);
+        });
+    }
 
     function checkoutCart() {
-      const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
-      if (totalQty < 1) {
+      if (!cart.length) {
         alert("Your cart is empty.");
         return;
       }
@@ -174,22 +197,26 @@
       fetch(`${BACKEND_URL}/create-checkout-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: totalQty })
+        body: JSON.stringify({ items: cart })
       })
-      .then(res => res.json())
-      .then(data => {
-        if (data.url) {
-          window.location.href = data.url;
-        } else {
-          alert("Error creating checkout session");
-          console.log(data);
-        }
-      })
-      .catch(err => {
-        alert("Checkout failed.");
-        console.error(err);
-      });
+        .then(res => res.json())
+        .then(data => {
+          if (data.url) {
+            localStorage.removeItem("cart");
+            window.location.href = data.url;
+          } else {
+            alert("Error creating checkout session");
+            console.log(data);
+          }
+        })
+        .catch(err => {
+          alert("Checkout failed.");
+          console.error(err);
+        });
     }
+
+    loadInventoryAndRender();
+    updateCartCount();
   </script>
 </body>
 </html>
