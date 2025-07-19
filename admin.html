@@ -28,15 +28,23 @@
     .hidden {
       display: none;
     }
-    .inventory-list {
-      margin-top: 1rem;
-      padding: 10px;
+    table {
+      width: 100%;
+      border-collapse: collapse;
       background: #222;
-      border-radius: 8px;
-      max-width: 300px;
+      margin-top: 1rem;
     }
-    .inventory-list p {
-      margin: 0.5rem 0;
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border: 1px solid #333;
+    }
+    th {
+      background: #333;
+    }
+    #message {
+      margin-top: 10px;
+      color: lightgreen;
     }
   </style>
 </head>
@@ -50,7 +58,7 @@
   </div>
 
   <div id="admin-panel" class="hidden">
-    <h2>Inventory</h2>
+    <h2>Update Inventory</h2>
 
     <label>Color:
       <select id="color">
@@ -70,11 +78,33 @@
     <button onclick="updateInventory()">Update Inventory</button>
     <p id="message"></p>
 
-    <div class="inventory-list" id="inventory-display">
-      <h3>Current Inventory</h3>
-    </div>
+    <h2>Current Inventory</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Blue</th>
+          <th>Green</th>
+          <th>Red</th>
+          <th>Silver</th>
+          <th>Black</th>
+          <th>Brown</th>
+          <th>Total Stock</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td id="stock-Blue">-</td>
+          <td id="stock-Green">-</td>
+          <td id="stock-Red">-</td>
+          <td id="stock-Silver">-</td>
+          <td id="stock-Black">-</td>
+          <td id="stock-Brown">-</td>
+          <td id="total-stock">-</td>
+        </tr>
+      </tbody>
+    </table>
 
-    <button onclick="logout()">Logout</button>
+    <button onclick="logout()" style="margin-top: 20px;">Logout</button>
   </div>
 
   <script>
@@ -109,13 +139,12 @@
       })
       .then(res => res.json())
       .then(data => {
-        const display = document.getElementById("inventory-display");
-        display.innerHTML = `<h3>Current Inventory</h3>`;
+        let total = 0;
         for (const [color, qty] of Object.entries(data)) {
-          const p = document.createElement("p");
-          p.textContent = `${color}: ${qty}`;
-          display.appendChild(p);
+          document.getElementById(`stock-${color}`).textContent = qty;
+          total += parseInt(qty);
         }
+        document.getElementById("total-stock").textContent = total;
       });
     }
 
@@ -139,7 +168,7 @@
         document.getElementById("message").textContent = data.success
           ? "Inventory updated successfully"
           : "Failed to update inventory";
-        fetchInventory();
+        fetchInventory(); // refresh inventory table
       });
     }
 
