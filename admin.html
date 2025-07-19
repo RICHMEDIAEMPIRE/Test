@@ -31,10 +31,11 @@
 </head>
 <body>
   <h1>Admin Login</h1>
+
   <div id="login-section">
     <input type="text" id="username" placeholder="Username" /> <br />
     <input type="password" id="password" placeholder="Password" /> <br />
-    <button onclick="login()">Login</button>
+    <button id="login-btn">Login</button>
   </div>
 
   <div id="admin-panel" class="hidden">
@@ -47,38 +48,46 @@
   </div>
 
   <script>
-    const backendURL = "http://localhost:4242"; // replace with your deployed backend URL in production
+    const backendURL = "http://localhost:4242"; // replace with deployed URL later
 
-    function login() {
+    document.getElementById("login-btn").addEventListener("click", () => {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+
       fetch(`${backendURL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          username: document.getElementById("username").value,
-          password: document.getElementById("password").value
-        })
-      }).then(res => res.json()).then(data => {
+        body: JSON.stringify({ username, password })
+      })
+      .then(res => res.json())
+      .then(data => {
         if (data.success) {
           document.getElementById("login-section").classList.add("hidden");
           document.getElementById("admin-panel").classList.remove("hidden");
         } else {
-          alert("Login failed");
+          alert("Invalid login.");
         }
-      });
-    }
+      })
+      .catch(() => alert("Failed to contact server."));
+    });
 
     function updateInventory() {
+      const color = document.getElementById("color").value.trim();
+      const qty = parseInt(document.getElementById("qty").value);
+
       fetch(`${backendURL}/inventory`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          color: document.getElementById("color").value,
-          qty: parseInt(document.getElementById("qty").value)
-        })
-      }).then(res => res.json()).then(data => {
-        document.getElementById("message").textContent = data.message || "Inventory updated";
+        body: JSON.stringify({ color, qty })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("message").textContent = data.message || "Updated.";
+      })
+      .catch(() => {
+        document.getElementById("message").textContent = "Error updating inventory.";
       });
     }
 
