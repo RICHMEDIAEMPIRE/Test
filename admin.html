@@ -1,41 +1,95 @@
+<!-- admin.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Inventory Admin</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel | Catfish Empire</title>
   <style>
-    body { font-family: sans-serif; padding: 2rem; background: #111; color: white; }
-    input { width: 50px; margin-left: 10px; }
-    button { margin-left: 10px; }
+    body {
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+    }
+    input, button {
+      padding: 8px;
+      margin: 6px 0;
+      font-size: 1rem;
+      border-radius: 4px;
+    }
+    input {
+      width: 200px;
+    }
+    button {
+      background: gold;
+      border: none;
+      cursor: pointer;
+    }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
-  <h1>Inventory Manager</h1>
-  <div id="inventory-list"></div>
+  <h1>Admin Login</h1>
+  <div id="login-section">
+    <input type="text" id="username" placeholder="Username" /> <br />
+    <input type="password" id="password" placeholder="Password" /> <br />
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="admin-panel" class="hidden">
+    <h2>Inventory</h2>
+    <label>Color: <input type="text" id="color" /></label><br />
+    <label>Qty: <input type="number" id="qty" /></label><br />
+    <button onclick="updateInventory()">Update Inventory</button>
+    <p id="message"></p>
+    <button onclick="logout()">Logout</button>
+  </div>
 
   <script>
-    const colors = ["Blue", "Red", "Green", "Black", "Silver", "Brown"];
+    const backendURL = "http://localhost:4242"; // replace with your deployed backend URL in production
 
-    colors.forEach(color => {
-      const div = document.createElement("div");
-      div.innerHTML = `
-        ${color} Stock: 
-        <input id="${color}" type="number" min="0" value="0" />
-        <button onclick="updateStock('${color}')">Add Stock</button>
-      `;
-      document.getElementById("inventory-list").appendChild(div);
-    });
-
-    function updateStock(color) {
-      const amount = parseInt(document.getElementById(color).value);
-      fetch("http://localhost:4242/restock", {
+    function login() {
+      fetch(`${backendURL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ color, amount })
-      })
-      .then(res => res.json())
-      .then(data => alert(data.message))
-      .catch(err => alert("Error: " + err.message));
+        credentials: "include",
+        body: JSON.stringify({
+          username: document.getElementById("username").value,
+          password: document.getElementById("password").value
+        })
+      }).then(res => res.json()).then(data => {
+        if (data.success) {
+          document.getElementById("login-section").classList.add("hidden");
+          document.getElementById("admin-panel").classList.remove("hidden");
+        } else {
+          alert("Login failed");
+        }
+      });
+    }
+
+    function updateInventory() {
+      fetch(`${backendURL}/inventory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          color: document.getElementById("color").value,
+          qty: parseInt(document.getElementById("qty").value)
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById("message").textContent = data.message || "Inventory updated";
+      });
+    }
+
+    function logout() {
+      fetch(`${backendURL}/logout`, {
+        method: "POST",
+        credentials: "include"
+      }).then(() => {
+        document.getElementById("admin-panel").classList.add("hidden");
+        document.getElementById("login-section").classList.remove("hidden");
+      });
     }
   </script>
 </body>
