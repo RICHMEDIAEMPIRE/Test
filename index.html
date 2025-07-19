@@ -12,7 +12,6 @@
       margin: 0;
       padding: 0;
     }
-
     nav {
       background: #111;
       padding: 1rem;
@@ -21,20 +20,17 @@
       align-items: center;
       border-bottom: 1px solid gold;
     }
-
     nav a {
       color: gold;
       text-decoration: none;
       font-weight: bold;
       font-size: 1.1rem;
     }
-
     h1 {
       text-align: center;
       color: gold;
       margin-top: 1rem;
     }
-
     .product-list {
       display: flex;
       flex-wrap: wrap;
@@ -43,7 +39,6 @@
       margin-top: 2rem;
       padding: 0 20px 40px;
     }
-
     .product {
       background: #222;
       padding: 1rem;
@@ -51,19 +46,16 @@
       width: 250px;
       text-align: center;
     }
-
     .product img {
       width: 100%;
       border-radius: 10px;
     }
-
     .product input[type=number] {
       width: 100%;
       padding: 0.5rem;
       margin-top: 0.5rem;
       box-sizing: border-box;
     }
-
     .product button {
       background: gold;
       border: none;
@@ -73,7 +65,6 @@
       font-weight: bold;
       cursor: pointer;
     }
-
     .checkout-btn {
       background: gold;
       border: none;
@@ -113,8 +104,7 @@
     ];
 
     let inventory = {};
-    let cart = JSON.parse(localStorage.getItem("cart"));
-    if (!Array.isArray(cart)) cart = [];
+    let cart = JSON.parse(localStorage.getItem("cart")) || [];
 
     function updateLocalCart() {
       localStorage.setItem("cart", JSON.stringify(cart));
@@ -173,7 +163,7 @@
     }
 
     function loadInventoryAndRender() {
-      fetch(`${BACKEND_URL}/inventory`, { credentials: "include" })
+      fetch(`${BACKEND_URL}/public-inventory`)
         .then(res => res.json())
         .then(data => {
           inventory = data;
