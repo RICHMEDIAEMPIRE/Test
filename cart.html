@@ -79,6 +79,7 @@
     <a href="index.html">← Back to Shop</a>
     <a href="#">Cart (<span id="cart-count">0</span>)</a>
   </nav>
+
   <main>
     <h1>Your Cart</h1>
     <ul id="cart-list"></ul>
@@ -90,8 +91,9 @@
   </main>
 
   <script>
-    let cart = JSON.parse(localStorage.getItem("cart"));
-    if (!Array.isArray(cart)) cart = [];
+    const BACKEND_URL = "https://catfish-stripe-backend.onrender.com";
+
+    let cart = JSON.parse(localStorage.getItem("cart")) || [];
 
     function updateCartCount() {
       const total = cart.reduce((sum, item) => sum + item.qty, 0);
@@ -143,7 +145,7 @@
         return;
       }
 
-      fetch("https://REPLACE_WITH_YOUR_RENDER_URL/create-checkout-session", {
+      fetch(`${BACKEND_URL}/create-checkout-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: cart })
@@ -151,6 +153,7 @@
       .then(res => res.json())
       .then(data => {
         if (data.url) {
+          localStorage.removeItem("cart");
           window.location = data.url;
         } else {
           alert("Checkout session failed to create.");
