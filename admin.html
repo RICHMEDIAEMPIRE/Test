@@ -78,7 +78,7 @@
   </div>
 
   <script>
-    const backendURL = "https://REPLACE_WITH_YOUR_RENDER_URL"; // 👈 Change this to your actual Render backend URL
+    const backendURL = "https://catfish-stripe-backend.onrender.com";
 
     function login() {
       fetch(`${backendURL}/login`, {
@@ -139,7 +139,7 @@
         document.getElementById("message").textContent = data.success
           ? "Inventory updated successfully"
           : "Failed to update inventory";
-        fetchInventory(); // refresh display
+        fetchInventory();
       });
     }
 
