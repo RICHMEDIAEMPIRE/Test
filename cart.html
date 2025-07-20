@@ -148,16 +148,17 @@
       fetch(`${BACKEND_URL}/create-checkout-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // ✅ Added to fix CORS/session
         body: JSON.stringify({ items: cart })
       })
       .then(res => res.json())
       .then(data => {
+        console.log("Stripe response:", data); // Debugging line
         if (data.url) {
           localStorage.removeItem("cart");
           window.location = data.url;
         } else {
           alert("Checkout session failed to create.");
-          console.log(data);
         }
       })
       .catch(err => {
