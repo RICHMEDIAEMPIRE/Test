@@ -1,0 +1,2699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Accounting — Recurring + Past Payments</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; background:#0b0f16; color:#e2e8f0; }
+    .glass { background: rgba(15,23,42,0.9); backdrop-filter: blur(8px); border:1px solid rgba(148,163,184,0.2);}  
+    .input { background:#0b1324; border:1px solid rgba(148,163,184,.25);}  
+    .modal-mask{position:fixed; inset:0; background:rgba(2,6,23,.75); display:none; place-items:center; z-index:50; overflow-y:auto; overscroll-behavior:contain}
+    .modal-mask.high-priority{z-index:100}
+    .modal{width:min(980px,96vw); max-height:92vh; overflow-y:auto}
+    .fullscreen{width:min(1200px,96vw)}
+    .amt-pos{color:#22c55e}
+    .amt-neg{color:#ef4444}
+    .btn{border-radius:.65rem; padding:.5rem 1rem}
+    .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:.5rem}
+    .cal-cell{min-height:96px}
+    .cal-cell:hover .add-btn{opacity:1}
+    .cal-dot{display:inline-block; width:.5rem; height:.5rem; border-radius:9999px}
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- LOGIN -->
+  <div id="login" class="min-h-screen flex items-center justify-center p-6">
+    <div class="glass rounded-2xl shadow-xl w-full max-w-md p-8">
+      <h1 class="text-2xl font-bold mb-2">RME ACCOUNTING</h1>
+      <label for="pw" class="text-sm text-slate-300">Password</label>
+      <div class="mt-1 flex items-center gap-2">
+        <input id="pw" type="password" class="input w-full rounded-lg px-3 py-2" placeholder="••••••••" />
+        <button id="togglePw" class="px-3 py-2 rounded-lg bg-slate-700/60 hover:bg-slate-700">Show</button>
+      </div>
+      <button id="enterBtn" class="mt-4 w-full bg-emerald-500 text-slate-900 font-semibold rounded-lg py-2">Enter</button>
+      <p id="loginMsg" class="text-sm text-rose-400 mt-3"></p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <header class="glass p-4 flex flex-wrap gap-3 items-center">
+      <h1 class="text-xl font-bold mr-auto">RME ACCOUNTING</h1>
+      <div class="flex gap-2">
+        <button id="addExpenseBtn" class="bg-rose-500 hover:bg-rose-400 text-slate-900 font-semibold rounded-lg px-4 py-2">+ Expense</button>
+        <button id="addIncomeBtn" class="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-lg px-4 py-2">+ Income</button>
+      </div>
+      <button id="openCalendarBtn" class="bg-indigo-500 hover:bg-indigo-400 btn">Calendar</button>
+      <button id="openReceiptsBtn" class="bg-sky-500 hover:bg-sky-400 btn">Receipts</button>
+      <button id="printTransactionsBtn" class="bg-orange-600/80 hover:bg-orange-600 btn">Print</button>
+      <button id="exportBtn" class="bg-slate-700/70 rounded-lg px-4 py-2">Export JSON</button>
+      <label class="bg-slate-700/70 rounded-lg px-4 py-2 cursor-pointer">
+        <input id="importInput" type="file" accept="application/json" class="hidden"/> Import
+      </label>
+      <span id="saveStatus" class="text-xs text-slate-400">—</span>
+    </header>
+
+        <!-- KPI -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4">
+        <div class="glass p-4 rounded-xl">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm text-slate-400">Total Income</h2>
+          <select id="kpiPeriodSelect" class="input rounded px-2 py-1 text-xs">
+            <option value="week">This Week</option>
+            <option value="month" selected>This Month</option>
+            <option value="quarter">This Quarter</option>
+            <option value="year">This Year</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+        <div id="kpiCustomRange" class="hidden mb-2 space-y-1">
+          <input id="kpiStartDate" type="date" class="input rounded px-2 py-1 text-xs w-full" />
+          <input id="kpiEndDate" type="date" class="input rounded px-2 py-1 text-xs w-full" />
+        </div>
+          <p id="kpiIncome" class="text-2xl font-bold amt-pos">$0.00</p>
+        </div>
+        <div class="glass p-4 rounded-xl">
+          <h2 class="text-sm text-slate-400">Total Expenses</h2>
+          <p id="kpiExpense" class="text-2xl font-bold amt-neg">$0.00</p>
+        </div>
+        <div class="glass p-4 rounded-xl">
+          <h2 class="text-sm text-slate-400">Net</h2>
+          <p id="kpiNet" class="text-2xl font-bold">$0.00</p>
+        </div>
+    </section>
+
+    <!-- CASH FLOW GAUGES (Adjustable Time Periods) -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+      <div class="glass p-4 rounded-xl flex flex-col items-center">
+                 <div class="mb-2">
+           <select id="period1Select" class="input rounded-lg px-2 py-1 text-xs">
+             <!-- Options populated by populatePeriodSelectors() -->
+           </select>
+         </div>
+         <div id="custom1Range" class="hidden mb-2 space-y-1">
+           <div class="text-xs text-slate-400">Custom Date Range:</div>
+           <input id="custom1Start" type="date" class="input rounded px-2 py-1 text-xs w-full" />
+           <input id="custom1End" type="date" class="input rounded px-2 py-1 text-xs w-full" />
+         </div>
+        <svg viewBox="0 0 320 180" width="100%" height="160" class="mb-2">
+          <!-- Track -->
+          <path d="M 60 150 A 110 110 0 0 1 260 150" fill="none" stroke="#1f2937" stroke-width="16" stroke-linecap="round"/>
+          <!-- Gradient arc -->
+          <defs>
+            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="50%" stop-color="#f59e0b"/>
+              <stop offset="100%" stop-color="#22c55e"/>
+            </linearGradient>
+          </defs>
+          <path d="M 60 150 A 110 110 0 0 1 260 150" fill="none" stroke="url(#grad1)" stroke-width="16" stroke-linecap="round"/>
+          <!-- Needle -->
+          <circle cx="160" cy="150" r="5" fill="#e2e8f0"/>
+          <line id="needle1" x1="160" y1="150" x2="60" y2="150" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round"/>
+          <!-- Labels -->
+          <text x="60" y="170" text-anchor="start" fill="#94a3b8" font-size="11">−10k</text>
+          <text x="160" y="170" text-anchor="middle" fill="#94a3b8" font-size="11">0</text>
+          <text x="260" y="170" text-anchor="end" fill="#94a3b8" font-size="11">+10k</text>
+          <text id="period1Label" x="160" y="22" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">Current Week</text>
+        </svg>
+        <p id="amount1" class="text-lg font-bold">$0.00</p>
+        <p class="text-xs text-slate-400 mt-1">CA$H FLOW</p>
+      </div>
+
+      <div class="glass p-4 rounded-xl flex flex-col items-center">
+                 <div class="mb-2">
+           <select id="period2Select" class="input rounded-lg px-2 py-1 text-xs">
+             <!-- Options populated by populatePeriodSelectors() -->
+           </select>
+         </div>
+         <div id="custom2Range" class="hidden mb-2 space-y-1">
+           <div class="text-xs text-slate-400">Custom Date Range:</div>
+           <input id="custom2Start" type="date" class="input rounded px-2 py-1 text-xs w-full" />
+           <input id="custom2End" type="date" class="input rounded px-2 py-1 text-xs w-full" />
+         </div>
+        <svg viewBox="0 0 320 180" width="100%" height="160" class="mb-2">
+          <!-- Track -->
+          <path d="M 60 150 A 110 110 0 0 1 260 150" fill="none" stroke="#1f2937" stroke-width="16" stroke-linecap="round"/>
+          <!-- Gradient arc -->
+          <defs>
+            <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="50%" stop-color="#f59e0b"/>
+              <stop offset="100%" stop-color="#22c55e"/>
+            </linearGradient>
+          </defs>
+          <path d="M 60 150 A 110 110 0 0 1 260 150" fill="none" stroke="url(#grad2)" stroke-width="16" stroke-linecap="round"/>
+          <!-- Needle -->
+          <circle cx="160" cy="150" r="5" fill="#e2e8f0"/>
+          <line id="needle2" x1="160" y1="150" x2="60" y2="150" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round"/>
+          <!-- Labels -->
+          <text x="60" y="170" text-anchor="start" fill="#94a3b8" font-size="11">−10k</text>
+          <text x="160" y="170" text-anchor="middle" fill="#94a3b8" font-size="11">0</text>
+          <text x="260" y="170" text-anchor="end" fill="#94a3b8" font-size="11">+10k</text>
+          <text id="period2Label" x="160" y="22" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">Current Month</text>
+        </svg>
+        <p id="amount2" class="text-lg font-bold">$0.00</p>
+        <p class="text-xs text-slate-400 mt-1">CA$H FLOW</p>
+      </div>
+
+      <div class="glass p-4 rounded-xl flex flex-col items-center">
+                 <div class="mb-2">
+           <select id="period3Select" class="input rounded-lg px-2 py-1 text-xs">
+             <!-- Options populated by populatePeriodSelectors() -->
+           </select>
+         </div>
+         <div id="custom3Range" class="hidden mb-2 space-y-1">
+           <div class="text-xs text-slate-400">Custom Date Range:</div>
+           <input id="custom3Start" type="date" class="input rounded px-2 py-1 text-xs w-full" />
+           <input id="custom3End" type="date" class="input rounded px-2 py-1 text-xs w-full" />
+         </div>
+        <svg viewBox="0 0 320 180" width="100%" height="160" class="mb-2">
+          <!-- Track -->
+          <path d="M 60 150 A 110 110 0 0 1 260 150" fill="none" stroke="#1f2937" stroke-width="16" stroke-linecap="round"/>
+          <!-- Gradient arc -->
+          <defs>
+            <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="50%" stop-color="#f59e0b"/>
+              <stop offset="100%" stop-color="#22c55e"/>
+            </linearGradient>
+          </defs>
+          <path d="M 60 150 A 110 110 0 0 1 260 150" fill="none" stroke="url(#grad3)" stroke-width="16" stroke-linecap="round"/>
+          <!-- Needle -->
+          <circle cx="160" cy="150" r="5" fill="#e2e8f0"/>
+          <line id="needle3" x1="160" y1="150" x2="60" y2="150" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round"/>
+          <!-- Labels -->
+          <text x="60" y="170" text-anchor="start" fill="#94a3b8" font-size="11">−10k</text>
+          <text x="160" y="170" text-anchor="middle" fill="#94a3b8" font-size="11">0</text>
+          <text x="260" y="170" text-anchor="end" fill="#94a3b8" font-size="11">+10k</text>
+          <text id="period3Label" x="160" y="22" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">Current Year</text>
+        </svg>
+        <p id="amount3" class="text-lg font-bold">$0.00</p>
+        <p class="text-xs text-slate-400 mt-1">CA$H FLOW</p>
+      </div>
+    </section>
+
+
+
+    <!-- Lists by Frequency (show both kinds) -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+      <div>
+        <h3 class="text-lg font-semibold mb-2">Monthly Items</h3>
+        <ul id="listMonthly" class="space-y-2"></ul>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold mb-2">Yearly Items</h3>
+        <ul id="listYearly" class="space-y-2"></ul>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold mb-2">One-Time Items</h3>
+        <ul id="listOnetime" class="space-y-2"></ul>
+      </div>
+    </section>
+
+    <!-- All Transactions Section -->
+    <section class="p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold">All Transactions</h2>
+        <div class="flex items-center gap-3">
+          <!-- Multi-select filters -->
+          <div class="flex items-center gap-2 text-xs">
+            <label class="flex items-center gap-1">
+              <input type="checkbox" id="filterAllIncome" checked class="rounded text-xs">
+              <span>Income</span>
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="checkbox" id="filterAllExpense" checked class="rounded text-xs">
+              <span>Expense</span>
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="checkbox" id="filterAllRecurring" checked class="rounded text-xs">
+              <span>Recurring</span>
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="checkbox" id="filterAllOneTime" checked class="rounded text-xs">
+              <span>One-time</span>
+            </label>
+      </div>
+          
+          <!-- Custom report generator -->
+          <button id="generateCustomReport" class="bg-purple-600/80 hover:bg-purple-600 btn text-xs">Custom Report</button>
+          </div>
+        </div>
+      <div id="transactionsList" class="space-y-3"></div>
+    </section>
+    
+    <!-- Extra bottom spacing for scrolling -->
+    <div class="h-96"></div>
+  </div>
+
+  <!-- ADD/EDIT MODAL -->
+  <div id="modalMask" class="modal-mask">
+    <div class="modal glass p-6 rounded-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h2 id="modalTitle" class="text-xl font-bold">Add Item</h2>
+        <button id="closeModal" class="px-2 py-1 rounded-md bg-slate-700/60 hover:bg-slate-700">✕</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input id="mDate" type="date" class="input w-full rounded-lg px-3 py-2" />
+        <select id="mKind" class="input w-full rounded-lg px-3 py-2">
+          <option>Expense</option>
+          <option>Income</option>
+        </select>
+        <input id="mDesc" type="text" placeholder="Description" class="input w-full rounded-lg px-3 py-2 md:col-span-2" />
+        <input id="mAmount" type="text" inputmode="decimal" placeholder="Amount (e.g., 123.45)" class="input w-full rounded-lg px-3 py-2" />
+        <!-- Recurrence controls -->
+        <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs text-slate-400">Recurrence</label>
+            <select id="mRecurrence" class="input w-full rounded-lg px-3 py-2">
+              <option value="intermitent">intermitent</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <div id="recMonthly" class="hidden">
+            <label class="text-xs text-slate-400">Day of month</label>
+            <select id="mMonthDay" class="input w-full rounded-lg px-3 py-2"></select>
+          </div>
+          <div id="recYearly" class="hidden grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-400">Month</label>
+              <select id="mYearMonth" class="input w-full rounded-lg px-3 py-2"></select>
+            </div>
+            <div>
+              <label class="text-xs text-slate-400">Day</label>
+              <select id="mYearDay" class="input w-full rounded-lg px-3 py-2"></select>
+            </div>
+          </div>
+        </div>
+        <div id="irsWrap" class="md:col-span-2">
+          <label class="text-xs text-slate-400">IRS Category (for Expenses)</label>
+          <select id="mIRS" class="input w-full rounded-lg px-3 py-2"></select>
+        </div>
+        <input id="mMethod" type="text" placeholder="Payment Method (Card, ACH, Cash)" class="input w-full rounded-lg px-3 py-2 md:col-span-2" />
+      </div>
+             <div class="flex justify-between items-center mt-4">
+         <button id="deleteFromModal" class="bg-rose-600 px-4 py-2 rounded-lg hidden">Delete</button>
+         <div class="flex gap-2">
+        <button id="cancelBtn" class="bg-slate-600 px-4 py-2 rounded-lg">Cancel</button>
+        <button id="saveAddBtn" class="bg-emerald-400 text-slate-900 font-semibold px-4 py-2 rounded-lg">Save & Add Another</button>
+        <button id="saveBtn" class="bg-emerald-500 text-slate-900 font-semibold px-4 py-2 rounded-lg">Save</button>
+         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CALENDAR MODAL (fullscreen) -->
+  <div id="calMask" class="modal-mask">
+    <div class="modal fullscreen glass p-6 rounded-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <button id="calPrev" class="btn bg-slate-700/70">◀</button>
+          <h2 id="calTitle" class="text-xl font-bold">Calendar</h2>
+          <button id="calNext" class="btn bg-slate-700/70">▶</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="calModeCalendar" class="btn bg-indigo-500">Calendar</button>
+                     <button id="calModeList" class="btn bg-slate-700/70">Upcoming Transactions</button>
+           <button id="calModePast" class="btn bg-slate-700/70">Past Transactions</button>
+          <button id="closeCal" class="btn bg-slate-700">Close</button>
+        </div>
+      </div>
+      <div id="calViewCalendar">
+        <div class="cal-grid text-slate-400 text-xs mb-2">
+          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+        <div id="calGrid" class="cal-grid"></div>
+      </div>
+      <div id="calViewList" class="hidden">
+        <div id="upcomingList" class="space-y-4"></div>
+      </div>
+      <div id="calViewPast" class="hidden">
+        <div id="pastList" class="space-y-4"></div>
+      </div>
+    </div>
+  </div>
+
+
+
+          <!-- EDIT TYPE SELECTION MODAL -->
+   <div id="editTypeMask" class="modal-mask high-priority">
+     <div class="glass p-6 rounded-2xl w-full max-w-lg mx-auto">
+      <div class="flex items-center justify-between mb-4">
+         <h2 class="text-xl font-bold">Choose Edit Type</h2>
+         <button id="closeEditType" class="px-2 py-1 rounded-md bg-slate-700/60 hover:bg-slate-700">✕</button>
+      </div>
+       <div id="editTypeContent" class="space-y-3">
+         <!-- Content populated by showEditTypeModal -->
+       </div>
+    </div>
+     </div>
+
+   <!-- PRINT TRANSACTIONS MODAL -->
+   <div id="printMask" class="modal-mask">
+     <div class="modal glass p-6 rounded-2xl">
+       <div class="flex items-center justify-between mb-4">
+         <h2 class="text-xl font-bold">Print Transactions</h2>
+         <button id="closePrint" class="px-2 py-1 rounded-md bg-slate-700/60 hover:bg-slate-700">✕</button>
+       </div>
+       
+       <!-- Period Selection -->
+       <div class="mb-4">
+         <label class="text-sm text-slate-300 block mb-2">Time Period</label>
+         <select id="printPeriod" class="input w-full rounded-lg px-3 py-2">
+           <option value="week">This Week</option>
+           <option value="month" selected>This Month</option>
+           <option value="quarter">This Quarter</option>
+           <option value="year">This Year</option>
+           <option value="custom">Custom Range</option>
+         </select>
+       </div>
+       
+       <!-- Custom Date Range -->
+       <div id="printCustomRange" class="hidden mb-4 grid grid-cols-2 gap-3">
+         <div>
+           <label class="text-xs text-slate-400">Start Date</label>
+           <input id="printStartDate" type="date" class="input w-full rounded-lg px-3 py-2"/>
+         </div>
+         <div>
+           <label class="text-xs text-slate-400">End Date</label>
+           <input id="printEndDate" type="date" class="input w-full rounded-lg px-3 py-2"/>
+         </div>
+       </div>
+       
+       <!-- Transaction Type Filters -->
+       <div class="mb-4">
+         <label class="text-sm text-slate-300 block mb-2">Transaction Types</label>
+         <div class="grid grid-cols-2 gap-2">
+           <label class="flex items-center gap-2">
+             <input type="checkbox" id="filterIncome" checked class="rounded">
+             <span class="text-sm">Income</span>
+           </label>
+           <label class="flex items-center gap-2">
+             <input type="checkbox" id="filterExpense" checked class="rounded">
+             <span class="text-sm">Expenses</span>
+           </label>
+           <label class="flex items-center gap-2">
+             <input type="checkbox" id="filterRecurring" checked class="rounded">
+             <span class="text-sm">Recurring</span>
+           </label>
+           <label class="flex items-center gap-2">
+             <input type="checkbox" id="filterOneTime" checked class="rounded">
+             <span class="text-sm">One-time</span>
+           </label>
+         </div>
+       </div>
+       
+       <div class="flex justify-end gap-2">
+         <button id="cancelPrint" class="bg-slate-600 px-4 py-2 rounded-lg">Cancel</button>
+         <button id="generatePrint" class="bg-orange-500 text-slate-900 font-semibold px-4 py-2 rounded-lg">Generate Print View</button>
+       </div>
+    </div>
+     </div>
+
+   <!-- CUSTOM REPORT MODAL -->
+   <div id="customReportMask" class="modal-mask">
+     <div class="modal glass p-6 rounded-2xl">
+       <div class="flex items-center justify-between mb-4">
+         <h2 class="text-xl font-bold">Custom Report Generator</h2>
+         <button id="closeCustomReport" class="px-2 py-1 rounded-md bg-slate-700/60 hover:bg-slate-700">✕</button>
+       </div>
+       
+       <!-- Date Range Selection -->
+       <div class="mb-4">
+         <label class="text-sm text-slate-300 block mb-2">Date Range</label>
+         <div class="grid grid-cols-2 gap-3">
+           <div>
+             <label class="text-xs text-slate-400">Start Date</label>
+             <input id="reportStartDate" type="date" class="input w-full rounded-lg px-3 py-2"/>
+           </div>
+           <div>
+             <label class="text-xs text-slate-400">End Date</label>
+             <input id="reportEndDate" type="date" class="input w-full rounded-lg px-3 py-2"/>
+           </div>
+         </div>
+       </div>
+       
+       <!-- Advanced Filters -->
+       <div class="mb-4">
+         <label class="text-sm text-slate-300 block mb-2">Include Transaction Types</label>
+         <div class="grid grid-cols-2 gap-2">
+           <label class="flex items-center gap-2">
+             <input type="checkbox" id="reportFilterIncome" checked class="rounded">
+             <span class="text-sm">Income</span>
+           </label>
+           <label class="flex items-center gap-2">
+             <input type="checkbox" id="reportFilterExpense" checked class="rounded">
+             <span class="text-sm">Expenses</span>
+           </label>
+           <label class="flex items-center gap-2">
+             <input type="checkbox" id="reportFilterRecurring" checked class="rounded">
+             <span class="text-sm">Recurring</span>
+           </label>
+           <label class="flex items-center gap-2">
+             <input type="checkbox" id="reportFilterOneTime" checked class="rounded">
+             <span class="text-sm">One-time</span>
+           </label>
+         </div>
+       </div>
+       
+       <!-- Report Preview -->
+       <div id="reportPreview" class="mb-4 p-4 glass rounded-xl max-h-64 overflow-y-auto hidden">
+         <h3 class="font-semibold mb-2">Report Preview</h3>
+         <div id="reportPreviewContent"></div>
+       </div>
+       
+       <div class="flex justify-between">
+         <button id="previewReport" class="bg-blue-600 px-4 py-2 rounded-lg">Preview Report</button>
+         <div class="flex gap-2">
+           <button id="exportReport" class="bg-emerald-600 px-4 py-2 rounded-lg">Export CSV</button>
+           <button id="printReport" class="bg-orange-500 text-slate-900 font-semibold px-4 py-2 rounded-lg">Print Report</button>
+         </div>
+       </div>
+    </div>
+  </div>
+
+  <!-- RECEIPTS MODAL -->
+  <div id="rcpMask" class="modal-mask">
+    <div class="modal fullscreen glass p-6 rounded-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold">Receipt Vault</h2>
+        <button id="closeRcp" class="btn bg-slate-700">Close</button>
+      </div>
+      <div class="glass p-4 rounded-xl mb-4">
+        <label class="block text-sm text-slate-300 mb-2">Upload receipts (images or PDFs). Large files are kept in your browser via IndexedDB.</label>
+        <input id="rcpInput" type="file" accept="image/*,application/pdf" multiple class="input w-full rounded-lg px-3 py-2" />
+      </div>
+      <div id="rcpList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+  </div>
+
+<script>
+// ===== CONFIG =====
+var PASSWORD = "empire"; // change here
+var IRS_CATEGORIES = [
+  "Office expense","Advertising","Car and truck expenses","Commissions and fees","Contract labor","Depletion","Depreciation","Employee benefit programs","Insurance (other than health)","Interest (mortgage)","Interest (other)","Legal and professional services","Pension and profit-sharing plans","Rent or lease (vehicles, machinery, equipment)","Rent or lease (other business property)","Repairs and maintenance","Supplies","Taxes and licenses","Travel","Meals","Utilities","Wages","Home office","Cost of goods — materials/supplies","Shipping","Inventory adjustments","Other"
+];
+var CASHFLOW_LIMIT = 10000; // −10k .. +10k
+
+// ===== SAFE HELPERS =====
+function el(id){ var n=document.getElementById(id); if(!n){ console.warn('[UI] Missing element #'+id); } return n; }
+function getVal(id, def){ var n=el(id); return (n && 'value' in n) ? n.value : (def||''); }
+function setVal(id, v){ var n=el(id); if(n && 'value' in n) n.value=v; }
+function setText(id, t){ var n=el(id); if(n) n.textContent = (t==null?'':t); }
+function setHTML(id, h){ var n=el(id); if(n) n.innerHTML = h; }
+function showMask(id, highPriority){ var n=el(id); if(n){ n.style.display='grid'; document.body.style.overflow='hidden'; if(highPriority) n.classList.add('high-priority'); } }
+function hideMask(id){ var n=el(id); if(n){ n.style.display='none'; document.body.style.overflow=''; n.classList.remove('high-priority'); } }
+function fmt(n){ return (n||0).toLocaleString(undefined,{style:'currency',currency:'USD'}); }
+function uid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36); }
+function nowIso(){ return new Date().toISOString(); }
+function parseAmount(str){ if(typeof str!=="string") return Number(str)||0; var s=str.replace(/[^0-9,.-]/g,'').replace(',','.'); var n=Number(s); return isNaN(n)?0:n; }
+function ymd(d){ if(!d) return ''; var dt = (d instanceof Date)? d : new Date(d); if(isNaN(dt)) return ''; return dt.toISOString().slice(0,10); }
+function clampDay(y, m, day){ var last = new Date(y, m+1, 0).getDate(); if(day<1) day=1; if(day>last) day=last; return day; }
+
+// ===== STATE =====
+var entries = []; // base entries
+var editingId = null;
+var editingScope = null; // 'single', 'future', 'all'
+var editingEventDate = null; // for scoped edits
+var lastExportAt = Number(localStorage.getItem('acct_lastExportAt')||0);
+var calCursor = new Date(); // which month calendar shows
+
+
+// ===== STORAGE =====
+function saveEntries(){ try{ localStorage.setItem('acct_entries', JSON.stringify(entries)); }catch(e){} var ts = new Date(); setText('saveStatus','Saved '+ts.toLocaleTimeString()); }
+function loadEntries(){ try { entries = JSON.parse(localStorage.getItem('acct_entries')||'[]'); } catch(e) { entries = []; }
+  var changed=false; for(var i=0;i<entries.length;i++){ var e=entries[i]; if(!e.id){ e.id=uid(); changed=true; } ensureRec(e); if(typeof e.amount!=='number'){ e.amount = Number(e.amount)||0; changed=true; } }
+  if(changed) saveEntries(); }
+
+// ===== DATA MODEL & RECURRENCE =====
+function normalizeType(t){ 
+  if(t==null) return 'intermitent'; 
+  t=String(t).toLowerCase(); 
+  if(t==='intermittent') return 'intermitent'; 
+  if(t==='one-time' || t==='onetime') return 'intermitent';
+  return t; 
+}
+
+function ensureRec(e){
+  // Ensure basic entry fields exist
+  if(!e.id) e.id = uid();
+  if(!e.kind) e.kind = 'Expense'; // Default to expense if missing
+  
+
+  if(!e.freq) {
+    // Map legacy type to freq if available, otherwise default to One-Time
+    if(e.type) {
+      var legacyType = String(e.type).toLowerCase();
+      if(legacyType === 'monthly') e.freq = 'Monthly';
+      else if(legacyType === 'yearly') e.freq = 'Yearly';
+      else e.freq = 'One-Time';
+    } else {
+      e.freq = 'One-Time';
+    }
+  }
+  
+  // Ensure rec object exists with all required fields
+  if(!e.rec){ 
+    var recType = normalizeType(
+      (e.rec && e.rec.type) || 
+      (e.freq === 'Monthly' ? 'monthly' : 
+       e.freq === 'Yearly' ? 'yearly' : 'intermitent')
+    );
+    
+    e.rec = { 
+      type: recType,
+      start: e.date || ymd(new Date()), 
+      day: null, 
+      month: null, 
+      end: null, 
+      endReason: null, 
+      finalAmount: null, 
+      active: false, 
+      subId: uid() 
+    }; 
+  }
+  
+  // Normalize and ensure rec fields
+  e.rec.type = normalizeType(e.rec.type);
+  if(!e.rec.start) e.rec.start = e.date || ymd(new Date());
+  if(!e.rec.subId) e.rec.subId = uid();
+  if(e.rec.active === undefined) e.rec.active = false;
+  
+  // Map legacy fields and setup recurrence details
+  if(e.rec.type === 'monthly'){
+    if(!e.rec.day){ 
+      var d = e.date || e.rec.start; 
+      var dd = d ? Number(d.slice(8,10)) : 1; 
+      e.rec.day = dd; 
+    }
+    // Set active status - recurring items are active unless explicitly ended
+    e.rec.active = true;
+    if(e.rec.end && e.rec.end < ymd(new Date())) {
+      e.rec.active = false; // Only inactive if ended in the past
+    }
+  }
+  
+  if(e.rec.type === 'yearly'){
+    if(!e.rec.day || !e.rec.month){ 
+      var d2 = e.date || e.rec.start; 
+      var mm = d2 ? Number(d2.slice(5,7)) : 1; 
+      var dd2 = d2 ? Number(d2.slice(8,10)) : 1; 
+      e.rec.month = mm; 
+      e.rec.day = dd2; 
+    }
+    // Set active status - recurring items are active unless explicitly ended
+    e.rec.active = true;
+    if(e.rec.end && e.rec.end < ymd(new Date())) {
+      e.rec.active = false; // Only inactive if ended in the past
+    }
+  }
+  
+  // For one-time items, they're always "active" in terms of being shown
+  if(e.rec.type === 'intermitent'){
+    e.rec.active = true;
+  }
+  
+  // Legacy migration: handle old 'type' field
+  if(e.type && !e.freq) {
+    var oldType = String(e.type).toLowerCase();
+    if(oldType === 'monthly') e.freq = 'Monthly';
+    else if(oldType === 'yearly') e.freq = 'Yearly';
+    else e.freq = 'One-Time';
+    delete e.type; // Remove legacy field
+  }
+  
+  // Legacy migration: handle old day/month fields on root
+  if(e.day !== undefined && e.rec.day === null) {
+    e.rec.day = Number(e.day);
+    delete e.day;
+  }
+  if(e.month !== undefined && e.rec.month === null) {
+    e.rec.month = Number(e.month);
+    delete e.month;
+  }
+}
+function happensOn(e, y, m, dStr){
+  if(!e) return false; 
+  ensureRec(e);
+  var type = normalizeType(e.rec.type);
+  var start = e.rec.start || e.date; 
+  var end = e.rec.end;
+  
+
+  
+
+  
+  // Check if date is before start or after end
+  if(start && dStr < start) {
+
+    return false;
+  }
+  if(end && dStr > end) {
+
+    return false;
+  }
+  
+  if(type==='monthly'){
+    var day = clampDay(y, m, Number(e.rec.day||1));
+    var target = ymd(new Date(y, m, day));
+
+    return target === dStr;
+  } else if(type==='yearly'){
+    var mm = Number(e.rec.month||1)-1; 
+    if(m !== mm) {
+
+      return false;
+    }
+    var dayY = clampDay(y, m, Number(e.rec.day||1)); 
+    var t = ymd(new Date(y, m, dayY)); 
+
+    return t === dStr;
+  } else { // intermitent (single)
+
+    return (e.date === dStr);
+  }
+}
+function finalOccurrenceAmount(e, dStr){ if(e.rec && e.rec.end && dStr===e.rec.end){ return Number(e.rec.finalAmount!=null? e.rec.finalAmount : e.amount)||0; } return Number(e.amount)||0; }
+
+// ===== CENTRAL CALENDAR DATA =====
+function generateCalendarData(lookBackYears, lookAheadYears) {
+  var today = new Date();
+  var startDate = new Date(today.getFullYear() - lookBackYears, 0, 1);
+  var endDate = new Date(today.getFullYear() + lookAheadYears, 11, 31, 23, 59, 59, 999);
+  
+  var calendarEvents = [];
+  
+  for(var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    ensureRec(entry);
+    var recType = normalizeType(entry.rec.type);
+    
+    if(recType === 'intermitent') {
+      // One-time item
+      if(entry.date) {
+        var entryDate = new Date(entry.date);
+        if(entryDate >= startDate && entryDate <= endDate) {
+          calendarEvents.push({
+            date: entry.date,
+            entry: entry,
+            amount: Number(entry.amount) || 0,
+            type: 'single',
+            isFinal: false
+          });
+        }
+      }
+    } else if(recType === 'monthly') {
+      // Monthly recurring - generate all monthly occurrences
+      var currentDate = entry.rec.start ? new Date(entry.rec.start) : startDate;
+      var targetDay = Number(entry.rec.day || 1);
+      
+      // Set to the correct day of the start month
+      currentDate.setDate(clampDay(currentDate.getFullYear(), currentDate.getMonth(), targetDay));
+      
+      while(currentDate <= endDate) {
+        var dateStr = ymd(currentDate);
+        var isFinal = entry.rec.end && dateStr === entry.rec.end;
+        var isExcluded = entry.rec.exclusions && entry.rec.exclusions.indexOf(dateStr) !== -1;
+        
+        // Add this occurrence if not excluded
+        if(!isExcluded) {
+          calendarEvents.push({
+            date: dateStr,
+            entry: entry,
+            amount: finalOccurrenceAmount(entry, dateStr),
+            type: 'recurring',
+            isFinal: isFinal
+          });
+        }
+        
+        // If this was the final occurrence, stop
+        if(isFinal) break;
+        
+        // Move to next month, same day
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        currentDate.setDate(clampDay(currentDate.getFullYear(), currentDate.getMonth(), targetDay));
+      }
+    } else if(recType === 'yearly') {
+      // Yearly recurring - generate all yearly occurrences  
+      var currentYear = entry.rec.start ? new Date(entry.rec.start).getFullYear() : startDate.getFullYear();
+      var targetMonth = (Number(entry.rec.month || 1) - 1); // 0-based month
+      var targetDay = Number(entry.rec.day || 1);
+      
+      while(currentYear <= endDate.getFullYear()) {
+        var yearDate = new Date(currentYear, targetMonth, clampDay(currentYear, targetMonth, targetDay));
+        var dateStr = ymd(yearDate);
+        var isFinal = entry.rec.end && dateStr === entry.rec.end;
+        var isExcluded = entry.rec.exclusions && entry.rec.exclusions.indexOf(dateStr) !== -1;
+        
+        // Only add if within our date range and not excluded
+        if(yearDate >= startDate && yearDate <= endDate && !isExcluded) {
+          calendarEvents.push({
+            date: dateStr,
+            entry: entry,
+            amount: finalOccurrenceAmount(entry, dateStr),
+            type: 'recurring',
+            isFinal: isFinal
+          });
+        }
+        
+        // If this was the final occurrence, stop
+        if(isFinal) break;
+        
+        currentYear++;
+      }
+    }
+  }
+  
+  // Sort by date
+  calendarEvents.sort(function(a, b) {
+    if(a.date !== b.date) return a.date.localeCompare(b.date);
+    return (a.entry.desc || '').localeCompare(b.entry.desc || '');
+  });
+  
+  return calendarEvents;
+}
+
+function getCalendarEventsForDate(dateStr) {
+  var allEvents = generateCalendarData(5, 10); // Look ahead 10 years for future subscriptions
+  var dayEvents = allEvents.filter(function(event) {
+    return event.date === dateStr;
+  });
+  
+
+  
+  return dayEvents;
+}
+
+function getPastPayments() {
+  var today = ymd(new Date());
+  var allEvents = generateCalendarData(5, 10); // Look ahead 10 years
+  return allEvents.filter(function(event) {
+    return event.date < today;
+  });
+}
+
+function getUpcomingPayments() {
+  var today = ymd(new Date());
+  var allEvents = generateCalendarData(5, 10); // Look ahead 10 years
+  return allEvents.filter(function(event) {
+    return event.date > today;
+  });
+}
+
+// ===== CALC (All based on calendar data) =====
+function totals(periodType){ 
+  var income=0, expense=0; 
+  
+  if(!periodType) periodType = getVal('kpiPeriodSelect') || 'month';
+  
+    var range;
+  
+  if(periodType === 'custom') {
+    // Custom range for KPI
+    var startDate = getVal('kpiStartDate');
+    var endDate = getVal('kpiEndDate');
+    if(startDate && endDate) {
+      range = {
+        start: new Date(startDate),
+        end: new Date(endDate + 'T23:59:59')
+      };
+    } else {
+      // Fallback to current month if no custom dates set
+      range = getCurrentMonthRange();
+    }
+  } else {
+    // Standard period
+    range = getPeriodRange(periodType);
+  }
+  
+  // Use calendar events for all calculations
+  var calendarEvents = generateCalendarData(5, 10);
+  
+  for(var i = 0; i < calendarEvents.length; i++) {
+    var event = calendarEvents[i];
+    var eventDate = new Date(event.date);
+    
+    // Only count events within the selected period
+    if(eventDate >= range.start && eventDate <= range.end) {
+      var amount = Number(event.amount) || 0;
+      if(event.entry.kind === 'Income') {
+        income += amount;
+      } else {
+        expense += amount;
+      }
+    }
+  }
+  
+  return { income:income, expense:expense, net: income - expense }; 
+}
+
+function totalsByFreq(){ 
+  var out={Monthly:0,Yearly:0,'One-Time':0}; 
+  
+  // Calculate frequency totals from active entries only
+  for(var i=0;i<entries.length;i++){
+    var e=entries[i]; 
+    ensureRec(e);
+    var val=(e.kind==='Income'?1:-1)*(Number(e.amount)||0); 
+    var key=e.freq||'One-Time';
+    
+    // Only count active recurring items, or all one-time items
+    var isActive = (normalizeType(e.rec.type) === 'intermitent') || 
+                   (e.rec.active === true);
+    
+    if(isActive) {
+      out[key]=(out[key]||0)+val; 
+    }
+  } 
+  return out;
+}
+
+// ===== PERIOD CASH FLOW CALCULATIONS =====
+function getCurrentWeekRange() {
+  var now = new Date();
+  var sunday = new Date(now);
+  sunday.setDate(now.getDate() - now.getDay()); // Go to Sunday
+  sunday.setHours(0,0,0,0);
+  var saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
+  saturday.setHours(23,59,59,999);
+  return { start: sunday, end: saturday };
+}
+
+function getCurrentMonthRange() {
+  var now = new Date();
+  var start = new Date(now.getFullYear(), now.getMonth(), 1);
+  var end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start: start, end: end };
+}
+
+function getCurrentYearRange() {
+  var now = new Date();
+  var currentYear = now.getFullYear();
+  var currentMonth = now.getMonth();
+  
+  // If we're past January 1st, use Jan 1 of this year to Jan 1 of next year
+  // If we're in January, use Jan 1 of last year to Jan 1 of this year
+  var startYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+  var endYear = startYear + 1;
+  
+  var start = new Date(startYear, 0, 1); // January 1st start year
+  var end = new Date(endYear, 0, 0, 23, 59, 59, 999); // December 31st end year
+  
+  return { start: start, end: end };
+}
+
+function getCurrentQuarterRange() {
+  var now = new Date();
+  var quarter = Math.floor(now.getMonth() / 3);
+  var start = new Date(now.getFullYear(), quarter * 3, 1);
+  var end = new Date(now.getFullYear(), (quarter * 3) + 3, 0, 23, 59, 59, 999);
+  return { start: start, end: end };
+}
+
+function getPeriodRange(periodType) {
+  switch(periodType) {
+    case 'week': return getCurrentWeekRange();
+    case 'month': return getCurrentMonthRange();
+    case 'quarter': return getCurrentQuarterRange();
+    case 'year': return getCurrentYearRange();
+    case 'custom': 
+      // For KPI custom range
+      var startDate = getVal('kpiStartDate');
+      var endDate = getVal('kpiEndDate');
+      if(startDate && endDate) {
+        return {
+          start: new Date(startDate),
+          end: new Date(endDate + 'T23:59:59')
+        };
+      }
+      // Fallback to current month
+      return getCurrentMonthRange();
+    default: return getCurrentWeekRange();
+  }
+}
+
+ // ===== DATE RANGE HELPERS =====
+ function getWeekRanges(count) {
+   var ranges = [];
+   var now = new Date();
+   
+   for(var i = 0; i < count; i++) {
+     var sunday = new Date(now);
+     sunday.setDate(now.getDate() - now.getDay() - (i * 7));
+     sunday.setHours(0,0,0,0);
+     var saturday = new Date(sunday);
+     saturday.setDate(sunday.getDate() + 6);
+     saturday.setHours(23,59,59,999);
+     
+     var label = ymd(sunday) + ' to ' + ymd(saturday);
+     if(i === 0) label = 'Current Week (' + label + ')';
+     else if(i === 1) label = 'Last Week (' + label + ')';
+     else label = (i + 1) + ' weeks ago (' + label + ')';
+     
+     ranges.push({
+       value: 'week_' + i,
+       label: label,
+       start: sunday,
+       end: saturday
+     });
+   }
+   
+   return ranges;
+ }
+ 
+ function getMonthRanges(count) {
+   var ranges = [];
+   var now = new Date();
+   
+   for(var i = 0; i < count; i++) {
+     var start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+     var end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
+     
+     var monthName = start.toLocaleString('default', { month: 'long', year: 'numeric' });
+     var label = i === 0 ? 'Current Month (' + monthName + ')' :
+                i === 1 ? 'Last Month (' + monthName + ')' :
+                i + ' months ago (' + monthName + ')';
+     
+     ranges.push({
+       value: 'month_' + i,
+       label: label,
+       start: start,
+       end: end
+     });
+   }
+   
+   return ranges;
+ }
+ 
+ function getYearRanges(count) {
+   var ranges = [];
+   var now = new Date();
+   
+   for(var i = 0; i < count; i++) {
+     var start = new Date(now.getFullYear() - i, 0, 1);
+     var end = new Date(now.getFullYear() - i, 11, 31, 23, 59, 59, 999);
+     
+     var year = now.getFullYear() - i;
+     var label = i === 0 ? 'Current Year (' + year + ')' :
+                i === 1 ? 'Last Year (' + year + ')' :
+                i + ' years ago (' + year + ')';
+     
+     ranges.push({
+       value: 'year_' + i,
+       label: label,
+       start: start,
+       end: end
+     });
+   }
+   
+   return ranges;
+ }
+ 
+ function populatePeriodSelectors() {
+   var weekRanges = getWeekRanges(10);
+   var monthRanges = getMonthRanges(12);
+   var yearRanges = getYearRanges(5);
+   
+   // Populate period 1 (default weekly)
+   var p1Html = '';
+   for(var i = 0; i < weekRanges.length; i++) {
+     p1Html += '<option value="' + weekRanges[i].value + '">' + weekRanges[i].label + '</option>';
+   }
+   p1Html += '<option value="custom_week">Custom 7-Day Range</option>';
+   setHTML('period1Select', p1Html);
+   
+   // Populate period 2 (default monthly)  
+   var p2Html = '';
+   for(var j = 0; j < monthRanges.length; j++) {
+     p2Html += '<option value="' + monthRanges[j].value + '">' + monthRanges[j].label + '</option>';
+   }
+   p2Html += '<option value="custom_month">Custom Monthly Range</option>';
+   setHTML('period2Select', p2Html);
+   
+   // Populate period 3 (default yearly)
+   var p3Html = '';
+   for(var k = 0; k < yearRanges.length; k++) {
+     p3Html += '<option value="' + yearRanges[k].value + '">' + yearRanges[k].label + '</option>';
+   }
+   p3Html += '<option value="custom_year">Custom Yearly Range</option>';
+   setHTML('period3Select', p3Html);
+   
+   // Set defaults
+   setVal('period1Select', 'week_0'); // Current week
+   setVal('period2Select', 'month_0'); // Current month
+   setVal('period3Select', 'year_0'); // Current year
+ }
+ 
+ function getPeriodRangeFromValue(value) {
+   var weekRanges = getWeekRanges(10);
+   var monthRanges = getMonthRanges(12);
+   var yearRanges = getYearRanges(5);
+   
+   // Handle custom ranges
+   if(value === 'custom_week') {
+     var start1 = getVal('custom1Start');
+     var end1 = getVal('custom1End');
+     if(start1 && end1) {
+       return {
+         label: 'Custom Range',
+         start: new Date(start1),
+         end: new Date(end1 + 'T23:59:59')
+       };
+     }
+   }
+   if(value === 'custom_month') {
+     var start2 = getVal('custom2Start');
+     var end2 = getVal('custom2End');
+     if(start2 && end2) {
+       return {
+         label: 'Custom Range',
+         start: new Date(start2),
+         end: new Date(end2 + 'T23:59:59')
+       };
+     }
+   }
+   if(value === 'custom_year') {
+     var start3 = getVal('custom3Start');
+     var end3 = getVal('custom3End');
+     if(start3 && end3) {
+       return {
+         label: 'Custom Range',
+         start: new Date(start3),
+         end: new Date(end3 + 'T23:59:59')
+       };
+     }
+   }
+   
+   // Find matching predefined range
+   for(var i = 0; i < weekRanges.length; i++) {
+     if(weekRanges[i].value === value) return weekRanges[i];
+   }
+   for(var j = 0; j < monthRanges.length; j++) {
+     if(monthRanges[j].value === value) return monthRanges[j];
+   }
+   for(var k = 0; k < yearRanges.length; k++) {
+     if(yearRanges[k].value === value) return yearRanges[k];
+   }
+   
+   // Default fallback
+   return { start: new Date(), end: new Date() };
+ }
+ 
+ function handlePeriodSelectorChange() {
+   // Show/hide custom date inputs based on selection
+   var p1Val = getVal('period1Select');
+   var p2Val = getVal('period2Select');
+   var p3Val = getVal('period3Select');
+   
+   var custom1 = el('custom1Range');
+   var custom2 = el('custom2Range');
+   var custom3 = el('custom3Range');
+   
+   if(custom1) custom1.classList.toggle('hidden', !p1Val.startsWith('custom_'));
+   if(custom2) custom2.classList.toggle('hidden', !p2Val.startsWith('custom_'));
+   if(custom3) custom3.classList.toggle('hidden', !p3Val.startsWith('custom_'));
+   
+   render(); // Re-render with new values
+ }
+
+ function getAdjustablePeriodCashFlows() {
+   var period1Type = getVal('period1Select') || 'week_0';
+   var period2Type = getVal('period2Select') || 'month_0';
+   var period3Type = getVal('period3Select') || 'year_0';
+   
+   var period1Range = getPeriodRangeFromValue(period1Type);
+   var period2Range = getPeriodRangeFromValue(period2Type);
+   var period3Range = getPeriodRangeFromValue(period3Type);
+   
+   return {
+     period1: calculatePeriodCashFlow(period1Range.start, period1Range.end),
+     period2: calculatePeriodCashFlow(period2Range.start, period2Range.end),
+     period3: calculatePeriodCashFlow(period3Range.start, period3Range.end)
+   };
+ }
+
+// Generate ALL occurrences (past and future) for an entry
+// Legacy function removed - now using generateCalendarData()
+
+function calculatePeriodCashFlow(startDate, endDate) {
+  var totalIncome = 0;
+  var totalExpenses = 0;
+  
+  // Get ALL calendar events (including future) and filter by the period
+  var calendarEvents = generateCalendarData(5, 10); // Look ahead 10 years for complete cashflow
+  
+  for(var i = 0; i < calendarEvents.length; i++) {
+    var event = calendarEvents[i];
+    var eventDate = new Date(event.date);
+    
+    // Only count events within our target period
+    if(eventDate >= startDate && eventDate <= endDate) {
+      var amount = Number(event.amount) || 0;
+      if(event.entry.kind === 'Income') {
+        totalIncome += amount;
+      } else {
+        totalExpenses += amount;
+      }
+    }
+  }
+  
+  // Cash flow = Income - Expenses
+  return totalIncome - totalExpenses;
+}
+
+  // ===== ALL TRANSACTIONS =====
+ function getAllTransactions() {
+   // Use the centralized calendar data but only show past to present
+   var today = ymd(new Date());
+   var calendarEvents = generateCalendarData(5, 10); // Look ahead 10 years
+   
+   // Filter to only include past and present transactions (not future)
+   var pastAndPresentEvents = calendarEvents.filter(function(event) {
+     return event.date <= today;
+   });
+   
+   var allTransactions = pastAndPresentEvents.map(function(event) {
+     return {
+       id: event.entry.id + '_' + event.date,
+       baseEntry: event.entry,
+       date: event.date,
+       desc: event.entry.desc,
+       amount: event.amount,
+       kind: event.entry.kind,
+       freq: event.entry.freq,
+       method: event.entry.method,
+       irscat: event.entry.irscat,
+       isRecurring: event.type === 'recurring',
+       isFinal: event.isFinal,
+       isEnded: event.entry.rec && event.entry.rec.end && event.date <= event.entry.rec.end
+     };
+   });
+   
+   // Sort by date (newest first), then by description
+   allTransactions.sort(function(a, b) {
+     if(a.date !== b.date) return b.date.localeCompare(a.date); // Most recent first
+     return (a.desc || '').localeCompare(b.desc || '');
+   });
+   
+   return allTransactions;
+ }
+ 
+ function renderAllTransactions() {
+   var allTransactions = getAllTransactions();
+   
+   // Apply multi-select filters
+   var filteredTransactions = allTransactions.filter(function(t) {
+     var includeIncome = el('filterAllIncome') && el('filterAllIncome').checked;
+     var includeExpense = el('filterAllExpense') && el('filterAllExpense').checked;
+     var includeRecurring = el('filterAllRecurring') && el('filterAllRecurring').checked;
+     var includeOneTime = el('filterAllOneTime') && el('filterAllOneTime').checked;
+     
+     var kindMatch = (t.kind === 'Income' && includeIncome) || 
+                     (t.kind === 'Expense' && includeExpense);
+     
+     var typeMatch = (t.isRecurring && includeRecurring) || 
+                     (!t.isRecurring && includeOneTime);
+     
+     return kindMatch && typeMatch;
+   });
+   
+   if(!filteredTransactions.length) {
+     setHTML('transactionsList', '<div class="text-slate-400 text-center py-8">No transactions found for selected filter.</div>');
+     return;
+   }
+   
+     // Group by month for better organization
+  var byMonth = {};
+  var monthOrder = [];
+  for(var i = 0; i < filteredTransactions.length; i++) {
+    var t = filteredTransactions[i];
+    var monthKey = t.date.slice(0, 7); // YYYY-MM
+    if(!byMonth[monthKey]) {
+      byMonth[monthKey] = [];
+      monthOrder.push(monthKey);
+    }
+    byMonth[monthKey].push(t);
+  }
+  
+  // Sort months in descending order (most recent first)
+  monthOrder.sort(function(a, b) { return b.localeCompare(a); });
+  
+  var html = '';
+  for(var m = 0; m < monthOrder.length; m++) {
+    var month = monthOrder[m];
+     var monthTransactions = byMonth[month];
+     var monthTotal = 0;
+     for(var j = 0; j < monthTransactions.length; j++) {
+       var t = monthTransactions[j];
+       monthTotal += (t.kind === 'Income' ? 1 : -1) * (Number(t.amount) || 0);
+     }
+     
+     html += '<div class="glass p-4 rounded-xl">';
+     html += '<div class="flex items-center justify-between mb-3">';
+     html += '<h3 class="text-lg font-semibold">' + month + '</h3>';
+     html += '<div class="text-sm ' + (monthTotal >= 0 ? 'amt-pos' : 'amt-neg') + '">';
+     html += 'Net: ' + fmt(monthTotal) + '</div>';
+     html += '</div>';
+     html += '<div class="space-y-2">';
+     
+     for(var k = 0; k < monthTransactions.length; k++) {
+       var trans = monthTransactions[k];
+       var sign = trans.kind === 'Income' ? '+' : '−';
+       var cls = trans.kind === 'Income' ? 'amt-pos' : 'amt-neg';
+       var cat = trans.kind === 'Expense' ? (trans.irscat || '—') : 'Revenue';
+       var recBadge = trans.isRecurring ? 
+         ' <span class="px-1 py-0.5 rounded text-xs bg-blue-600/30 text-blue-300">' + trans.freq + '</span>' : '';
+       var finalBadge = trans.isFinal ? 
+         ' <span class="px-1 py-0.5 rounded text-xs bg-orange-600/30 text-orange-300">Final</span>' : '';
+       
+       html += '<div class="cursor-pointer hover:bg-slate-700/30 rounded p-3 border-b border-slate-700/50" onclick="showEditMenuGlobal(\'' + trans.baseEntry.id + '\', \'' + trans.date + '\')">';
+       html += '<div class="font-bold text-sm uppercase tracking-wide mb-1">' + trans.desc + finalBadge + recBadge + '</div>';
+       html += '<div class="flex items-center justify-between">';
+       html += '<div class="flex items-center gap-3 text-xs text-slate-400">';
+       html += '<span>' + trans.date + '</span>';
+       html += '<span>•</span>';
+       html += '<span>' + cat + '</span>';
+       if(trans.method) {
+         html += '<span>•</span>';
+         html += '<span>' + trans.method + '</span>';
+       }
+       html += '</div>';
+       html += '<div class="font-semibold ' + cls + '">' + sign + fmt(trans.amount) + '</div>';
+       html += '</div>';
+       html += '</div>';
+     }
+     
+     html += '</div></div>';
+   }
+   
+   setHTML('transactionsList', html);
+ }
+
+// ===== RENDER (main) =====
+function render(){
+  var kpiPeriod = getVal('kpiPeriodSelect') || 'month';
+  var t = totals(kpiPeriod);
+  setText('kpiIncome', fmt(t.income));
+  setText('kpiExpense', fmt(t.expense));
+  setText('kpiNet', fmt(t.net));
+
+  // Adjustable Period Cash Flow Gauges
+  var periods = getAdjustablePeriodCashFlows();
+  
+  function updateGauge(needleId, amountId, labelId, periodType, value) {
+    var L = CASHFLOW_LIMIT;
+    
+    // Clamp value to range
+    var clampedValue = Math.max(-L, Math.min(L, value));
+    
+    // Calculate needle angle using 1/8 increments
+    // 8 ranges: -10k to -7.5k, -7.5k to -5k, -5k to -2.5k, -2.5k to 0, 0 to 2.5k, 2.5k to 5k, 5k to 7.5k, 7.5k to 10k
+    // Each range is 22.5 degrees (180° / 8 = 22.5°)
+    // At -10k: 180°, At 0: 90°, At +10k: 0°
+    
+    var angle;
+    if (clampedValue <= -7500) {
+      // Range 1: -10k to -7.5k (180° to 157.5°)
+      var ratio1 = (clampedValue + 10000) / 2500; // 0 to 1
+      angle = 180 - (ratio1 * 22.5);
+    } else if (clampedValue <= -5000) {
+      // Range 2: -7.5k to -5k (157.5° to 135°)
+      var ratio2 = (clampedValue + 7500) / 2500;
+      angle = 157.5 - (ratio2 * 22.5);
+    } else if (clampedValue <= -2500) {
+      // Range 3: -5k to -2.5k (135° to 112.5°)
+      var ratio3 = (clampedValue + 5000) / 2500;
+      angle = 135 - (ratio3 * 22.5);
+    } else if (clampedValue <= 0) {
+      // Range 4: -2.5k to 0 (112.5° to 90°)
+      var ratio4 = (clampedValue + 2500) / 2500;
+      angle = 112.5 - (ratio4 * 22.5);
+    } else if (clampedValue <= 2500) {
+      // Range 5: 0 to 2.5k (90° to 67.5°)
+      var ratio5 = clampedValue / 2500;
+      angle = 90 - (ratio5 * 22.5);
+    } else if (clampedValue <= 5000) {
+      // Range 6: 2.5k to 5k (67.5° to 45°)
+      var ratio6 = (clampedValue - 2500) / 2500;
+      angle = 67.5 - (ratio6 * 22.5);
+    } else if (clampedValue <= 7500) {
+      // Range 7: 5k to 7.5k (45° to 22.5°)
+      var ratio7 = (clampedValue - 5000) / 2500;
+      angle = 45 - (ratio7 * 22.5);
+    } else {
+      // Range 8: 7.5k to 10k (22.5° to 0°)
+      var ratio8 = (clampedValue - 7500) / 2500;
+      angle = 22.5 - (ratio8 * 22.5);
+    }
+    
+    var rad = angle * Math.PI / 180;
+    var cx = 160, cy = 150, r = 90;
+  var nx = cx + r * Math.cos(rad);
+  var ny = cy - r * Math.sin(rad);
+    
+    var needle = el(needleId);
+    if (needle) {
+      needle.setAttribute('x2', nx.toFixed(1));
+      needle.setAttribute('y2', ny.toFixed(1));
+    }
+    
+    // Update amount display with color coding
+    var amountEl = el(amountId);
+    if (amountEl) {
+      amountEl.textContent = fmt(value);
+      amountEl.className = 'text-lg font-bold ' + (value >= 0 ? 'amt-pos' : 'amt-neg');
+    }
+    
+         // Update period label
+     var labelEl = el(labelId);
+     if (labelEl) {
+       var range = getPeriodRangeFromValue(periodType);
+       if(range.label) {
+         labelEl.textContent = range.label.split('(')[0].trim(); // Just the main label, not the date range part
+       } else {
+         labelEl.textContent = periodType;
+       }
+     }
+  }
+  
+  var period1Type = getVal('period1Select') || 'week_0';
+  var period2Type = getVal('period2Select') || 'month_0';
+  var period3Type = getVal('period3Select') || 'year_0';
+  
+  updateGauge('needle1', 'amount1', 'period1Label', period1Type, periods.period1);
+  updateGauge('needle2', 'amount2', 'period2Label', period2Type, periods.period2);
+  updateGauge('needle3', 'amount3', 'period3Label', period3Type, periods.period3);
+
+  // Frequency nets (removed section from UI but keep calculations for other uses)
+  var by = totalsByFreq();
+
+  // Lists per freq (only show active items)
+  var byType = { 'Monthly':[], 'Yearly':[], 'One-Time':[] };
+  for(var i=0;i<entries.length;i++){ 
+    var e=entries[i]; 
+    ensureRec(e);
+    var key=e.freq||'One-Time'; 
+    if(!byType[key]) byType[key]=[]; 
+    
+    // Only show active recurring items, or all one-time items
+    var isActive = (normalizeType(e.rec.type) === 'intermitent') || 
+                   (e.rec.active === true);
+    
+    if(isActive) {
+      byType[key].push(e); 
+    }
+  }
+  function sortList(arr){ arr.sort(function(a,b){ var da=(a.date||'2100-01-01'); var db=(b.date||'2100-01-01'); if(da<db) return -1; if(da>db) return 1; var ad=(a.desc||''); var bd=(b.desc||''); return ad.localeCompare(bd); }); }
+  sortList(byType['Monthly']); sortList(byType['Yearly']); sortList(byType['One-Time']);
+  function rowHTML(e){ 
+    var sign = e.kind==='Income'? '+':'−'; 
+    var cls = e.kind==='Income'? 'amt-pos':'amt-neg'; 
+    var cat = e.kind==='Expense' ? (e.irscat||'—') : 'Revenue';
+    var recBadge = (e.rec&&normalizeType(e.rec.type)==='monthly')? ' <span class="px-1 py-0.5 rounded text-xs bg-blue-600/30 text-blue-300">Monthly</span>' : 
+                   (e.rec&&normalizeType(e.rec.type)==='yearly')? ' <span class="px-1 py-0.5 rounded text-xs bg-purple-600/30 text-purple-300">Yearly</span>' : '';
+    
+    return '<li class="glass rounded-lg p-3 cursor-pointer hover:bg-slate-700/30 overflow-hidden" onclick="window.editEntry(\''+e.id+'\')">\n' +
+      '<div class="font-bold text-sm uppercase tracking-wide mb-2">' + e.desc + recBadge + '</div>\n' +
+      '<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">\n' +
+        '<div class="flex flex-wrap items-center gap-2 text-xs text-slate-400 min-w-0">\n' +
+          '<span class="whitespace-nowrap">' + (e.date||'—') + '</span>\n' +
+          '<span>•</span>\n' +
+          '<span class="truncate">' + cat + '</span>\n' +
+          (e.method ? '<span>•</span><span class="truncate">' + e.method + '</span>' : '') + '\n' +
+        '</div>\n' +
+        '<div class="flex items-center justify-between sm:justify-end gap-2 shrink-0">\n' +
+          '<span class="font-semibold '+cls+' whitespace-nowrap">'+sign+fmt(e.amount)+'</span>\n' +
+          '<div class="flex gap-1">\n' +
+            '<button class="px-2 py-1 rounded bg-slate-700/70 text-xs whitespace-nowrap" onclick="event.stopPropagation(); window.editEntry(\''+e.id+'\')">Edit</button>\n' +
+            '<button class="px-2 py-1 rounded bg-rose-600/80 text-xs whitespace-nowrap" onclick="event.stopPropagation(); window.delEntry(\''+e.id+'\')">Del</button>\n' +
+          '</div>\n' +
+        '</div>\n' +
+      '</div>\n' +
+    '</li>'; 
+  }
+  function mount(id, arr){ setHTML(id, arr.map(rowHTML).join('') || "<li class='text-slate-400 text-xs'>No items yet.</li>"); }
+  mount('listMonthly', byType['Monthly']);
+  mount('listYearly', byType['Yearly']);
+  mount('listOnetime', byType['One-Time']);
+
+  // If calendar modal open, refresh it
+  if(el('calMask') && el('calMask').style.display==='grid') { renderCalendar(); renderUpcomingList(); renderPastPayments(); }
+
+  // Render All Transactions section
+  renderAllTransactions();
+
+
+
+  saveEntries();
+}
+
+// ===== EDIT/DELETE =====
+window.editEntry = function(id){ 
+  for(var i=0;i<entries.length;i++){ 
+    if(entries[i].id===id){ 
+      editingScope = 'all'; // Edit entire series
+      editingEventDate = null;
+      openModal(entries[i].kind, entries[i]); 
+      return; 
+    } 
+  } 
+};
+
+window.delEntry = function(id){ 
+  if(!confirm('Delete this item?')) return; 
+  entries = entries.filter(function(x){return x.id!==id}); 
+  render(); 
+};
+
+// ===== EDIT MENU SYSTEM =====
+// Global edit menu function accessible from HTML onclick
+function showEditMenuGlobal(entryId, eventDate) {
+  var entry = entries.find(function(e) { return e.id === entryId; });
+  if(!entry) {
+    return;
+  }
+  
+  ensureRec(entry);
+  var recType = normalizeType(entry.rec.type);
+  var today = ymd(new Date());
+  
+  if(recType === 'intermitent') {
+    // One-time item - just edit directly
+    // Close calendar modal if open
+    if(el('calMask') && el('calMask').style.display === 'grid') {
+      hideMask('calMask');
+    }
+    window.editEntry(entryId);
+    return;
+  }
+  
+  // Recurring item - show clickable edit type modal
+  showEditTypeModal(entryId, eventDate, entry);
+}
+
+function showEditTypeModal(entryId, eventDate, entry) {
+  var today = ymd(new Date());
+  var content = '';
+  
+  content += '<div class="text-sm text-slate-300 mb-4">Editing: <strong>' + entry.desc + '</strong> on ' + eventDate + '</div>';
+  
+  content += '<button class="w-full glass p-4 rounded-xl hover:bg-slate-700/50 text-left mb-3" onclick="editTypeChoice(1, \''+entryId+'\', \''+eventDate+'\')">';
+  content += '<div class="font-semibold text-blue-300">Edit only this event</div>';
+  content += '<div class="text-xs text-slate-400">Change only the ' + eventDate + ' occurrence</div>';
+  content += '</button>';
+  
+  content += '<button class="w-full glass p-4 rounded-xl hover:bg-slate-700/50 text-left mb-3" onclick="editTypeChoice(2, \''+entryId+'\', \''+eventDate+'\')">';
+  content += '<div class="font-semibold text-emerald-300">Edit future events only</div>';
+  content += '<div class="text-xs text-slate-400">Change ' + eventDate + ' and all future occurrences</div>';
+  content += '</button>';
+  
+  content += '<button class="w-full glass p-4 rounded-xl hover:bg-slate-700/50 text-left mb-3" onclick="editTypeChoice(3, \''+entryId+'\', \''+eventDate+'\')">';
+  content += '<div class="font-semibold text-purple-300">Edit entire series</div>';
+  content += '<div class="text-xs text-slate-400">Change all past, present, and future occurrences</div>';
+  content += '</button>';
+  
+  content += '<button class="w-full glass p-4 rounded-xl hover:bg-slate-700/50 text-left" onclick="editTypeChoice(4, \''+entryId+'\', \''+eventDate+'\')">';
+  content += '<div class="font-semibold text-rose-300">Delete entire series</div>';
+  content += '<div class="text-xs text-slate-400">Remove all occurrences permanently</div>';
+  content += '</button>';
+  
+  setHTML('editTypeContent', content);
+  showMask('editTypeMask');
+}
+
+function closeEditTypeModal() {
+  hideMask('editTypeMask');
+}
+
+window.editTypeChoice = function(choice, entryId, eventDate) {
+  closeEditTypeModal();
+  
+  if(choice === 1) {
+    editSingleOccurrence(entryId, eventDate);
+  } else if(choice === 2) {
+    editFutureOccurrences(entryId, eventDate);
+  } else if(choice === 3) {
+    // Close calendar modal if open
+    if(el('calMask') && el('calMask').style.display === 'grid') {
+      hideMask('calMask');
+    }
+    window.editEntry(entryId);
+  } else if(choice === 4) {
+    window.delEntry(entryId);
+  }
+};
+
+// Make function globally accessible
+window.showEditMenuGlobal = showEditMenuGlobal;
+window.showEditMenu = showEditMenuGlobal;
+
+// ===== CALENDAR ADD TRANSACTION =====
+function addTransactionForDate(dateStr) {
+  // Close calendar modal
+  if(el('calMask') && el('calMask').style.display === 'grid') {
+    hideMask('calMask');
+  }
+  
+  // Open modal with date pre-populated
+  openModal('Expense'); // Default to expense
+  
+  // Set the date
+  setVal('mDate', dateStr);
+  
+  // Auto-populate recurring settings based on the selected date
+  var selectedDate = new Date(dateStr);
+  var day = selectedDate.getDate();
+  var month = selectedDate.getMonth() + 1; // 1-based month
+  
+  // Auto-populate monthly day
+  setVal('mMonthDay', day);
+  
+  // Auto-populate yearly month and day
+  setVal('mYearMonth', month);
+  setVal('mYearDay', day);
+  
+  // Focus on description for immediate entry
+  setTimeout(function() {
+    var desc = el('mDesc');
+    if(desc) desc.focus();
+  }, 100);
+}
+
+// Make globally accessible
+window.addTransactionForDate = addTransactionForDate;
+
+// ===== PRINT TRANSACTIONS =====
+function openPrintModal() {
+  showMask('printMask');
+  
+  // Set default date range for custom
+  var today = new Date();
+  var startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  setVal('printStartDate', ymd(startOfMonth));
+  setVal('printEndDate', ymd(today));
+}
+
+function closePrintModal() {
+  hideMask('printMask');
+}
+
+function handlePrintPeriodChange() {
+  var period = getVal('printPeriod');
+  var customRange = el('printCustomRange');
+  if(customRange) {
+    customRange.classList.toggle('hidden', period !== 'custom');
+  }
+}
+
+function generatePrintView() {
+  var period = getVal('printPeriod');
+  var range;
+  
+  if(period === 'custom') {
+    var startDate = getVal('printStartDate');
+    var endDate = getVal('printEndDate');
+    if(!startDate || !endDate) {
+      alert('Please select both start and end dates for custom range.');
+      return;
+    }
+    range = {
+      start: new Date(startDate),
+      end: new Date(endDate + 'T23:59:59')
+    };
+  } else {
+    range = getPeriodRange(period);
+  }
+  
+  // Get calendar events for the period
+  var calendarEvents = generateCalendarData(5, 10);
+  var periodEvents = calendarEvents.filter(function(event) {
+    var eventDate = new Date(event.date);
+    return eventDate >= range.start && eventDate <= range.end;
+  });
+  
+  // Apply filters
+  var filteredEvents = periodEvents.filter(function(event) {
+    var includeIncome = el('filterIncome') && el('filterIncome').checked;
+    var includeExpense = el('filterExpense') && el('filterExpense').checked;
+    var includeRecurring = el('filterRecurring') && el('filterRecurring').checked;
+    var includeOneTime = el('filterOneTime') && el('filterOneTime').checked;
+    
+    var kindMatch = (event.entry.kind === 'Income' && includeIncome) || 
+                    (event.entry.kind === 'Expense' && includeExpense);
+    
+    var typeMatch = (event.type === 'recurring' && includeRecurring) || 
+                    (event.type === 'single' && includeOneTime);
+    
+    return kindMatch && typeMatch;
+  });
+  
+  // Generate print HTML
+  var printHtml = generatePrintHTML(filteredEvents, range, period);
+  
+  // Open print window
+  var printWindow = window.open('', '_blank');
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.print();
+  
+  closePrintModal();
+}
+
+function generatePrintHTML(events, range, period) {
+  var periodLabel = {
+    'week': 'This Week',
+    'month': 'This Month', 
+    'quarter': 'This Quarter',
+    'year': 'This Year',
+    'custom': 'Custom Range'
+  }[period] || period;
+  
+  var startDate = ymd(range.start);
+  var endDate = ymd(range.end);
+  
+  var totalIncome = 0;
+  var totalExpenses = 0;
+  
+  var html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Transaction Report - ${periodLabel}</title>
+      <style>
+        body { font-family: Inter, system-ui, sans-serif; margin: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .summary { margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px; }
+        .transaction { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        .income { color: #22c55e; }
+        .expense { color: #ef4444; }
+        .final { font-style: italic; }
+        .recurring-badge { background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+        @media print { body { margin: 0; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Transaction Report</h1>
+        <h2>${periodLabel} (${startDate} to ${endDate})</h2>
+        <p>Generated on ${new Date().toLocaleString()}</p>
+      </div>
+  `;
+  
+  // Sort events by date (newest first)
+  events.sort(function(a, b) {
+    return b.date.localeCompare(a.date);
+  });
+  
+  // Calculate totals
+  for(var i = 0; i < events.length; i++) {
+    var event = events[i];
+    var amount = Number(event.amount) || 0;
+    if(event.entry.kind === 'Income') {
+      totalIncome += amount;
+    } else {
+      totalExpenses += amount;
+    }
+  }
+  
+  var net = totalIncome - totalExpenses;
+  
+  // Add summary
+  html += `
+    <div class="summary">
+      <h3>Summary</h3>
+      <p><strong>Total Income:</strong> ${fmt(totalIncome)}</p>
+      <p><strong>Total Expenses:</strong> ${fmt(totalExpenses)}</p>
+      <p><strong>Net:</strong> ${fmt(net)}</p>
+      <p><strong>Total Transactions:</strong> ${events.length}</p>
+    </div>
+    
+    <h3>Transactions</h3>
+  `;
+  
+  // Add transactions
+  for(var j = 0; j < events.length; j++) {
+    var event = events[j];
+    var sign = event.entry.kind === 'Income' ? '+' : '−';
+    var cls = event.entry.kind === 'Income' ? 'income' : 'expense';
+    var finalTag = event.isFinal ? ' (final)' : '';
+    var recurringBadge = event.type === 'recurring' ? 
+      ' <span class="recurring-badge">' + event.entry.freq + '</span>' : '';
+    
+    html += `
+      <div class="transaction">
+        <div>
+          <strong>${event.date}</strong> — ${event.entry.desc}${finalTag}${recurringBadge}
+          <br><small>${event.entry.kind === 'Expense' ? (event.entry.irscat || '—') : 'Revenue'}${event.entry.method ? ' • ' + event.entry.method : ''}</small>
+        </div>
+        <div class="${cls}"><strong>${sign}${fmt(event.amount)}</strong></div>
+      </div>
+    `;
+  }
+  
+  html += `
+    </body>
+    </html>
+  `;
+  
+  return html;
+}
+
+window.openPrintModal = openPrintModal;
+window.closePrintModal = closePrintModal;
+window.handlePrintPeriodChange = handlePrintPeriodChange;
+window.generatePrintView = generatePrintView;
+
+// ===== CUSTOM REPORT GENERATOR =====
+function openCustomReportModal() {
+  showMask('customReportMask');
+  
+  // Set default date range (current month)
+  var today = new Date();
+  var startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  setVal('reportStartDate', ymd(startOfMonth));
+  setVal('reportEndDate', ymd(today));
+}
+
+function closeCustomReportModal() {
+  hideMask('customReportMask');
+  var preview = el('reportPreview');
+  if(preview) preview.classList.add('hidden');
+}
+
+function previewCustomReport() {
+  var startDate = getVal('reportStartDate');
+  var endDate = getVal('reportEndDate');
+  
+  if(!startDate || !endDate) {
+    alert('Please select both start and end dates.');
+    return;
+  }
+  
+  var range = {
+    start: new Date(startDate),
+    end: new Date(endDate + 'T23:59:59')
+  };
+  
+  // Get and filter events
+  var calendarEvents = generateCalendarData(5, 10);
+  var periodEvents = calendarEvents.filter(function(event) {
+    var eventDate = new Date(event.date);
+    return eventDate >= range.start && eventDate <= range.end;
+  });
+  
+  // Apply filters
+  var filteredEvents = periodEvents.filter(function(event) {
+    var includeIncome = el('reportFilterIncome') && el('reportFilterIncome').checked;
+    var includeExpense = el('reportFilterExpense') && el('reportFilterExpense').checked;
+    var includeRecurring = el('reportFilterRecurring') && el('reportFilterRecurring').checked;
+    var includeOneTime = el('reportFilterOneTime') && el('reportFilterOneTime').checked;
+    
+    var kindMatch = (event.entry.kind === 'Income' && includeIncome) || 
+                    (event.entry.kind === 'Expense' && includeExpense);
+    
+    var typeMatch = (event.type === 'recurring' && includeRecurring) || 
+                    (event.type === 'single' && includeOneTime);
+    
+    return kindMatch && typeMatch;
+  });
+  
+  // Generate preview
+  var html = generateReportPreview(filteredEvents, range);
+  setHTML('reportPreviewContent', html);
+  
+  var preview = el('reportPreview');
+  if(preview) preview.classList.remove('hidden');
+}
+
+function generateReportPreview(events, range) {
+  var totalIncome = 0;
+  var totalExpenses = 0;
+  var net = 0;
+  
+  // Sort by date (newest first)
+  events.sort(function(a, b) {
+    return b.date.localeCompare(a.date);
+  });
+  
+  var html = '<div class="space-y-2 text-sm">';
+  
+  for(var i = 0; i < events.length; i++) {
+    var event = events[i];
+    var amount = Number(event.amount) || 0;
+    var sign = event.entry.kind === 'Income' ? '+' : '−';
+    var cls = event.entry.kind === 'Income' ? 'amt-pos' : 'amt-neg';
+    
+    if(event.entry.kind === 'Income') {
+      totalIncome += amount;
+      net += amount;
+    } else {
+      totalExpenses += amount;
+      net -= amount;
+    }
+    
+    html += '<div class="flex items-center justify-between py-1 border-b border-slate-700/30">';
+    html += '<div>';
+    html += '<div class="font-semibold">' + event.entry.desc + '</div>';
+    html += '<div class="text-xs text-slate-400">' + event.date + '</div>';
+    html += '</div>';
+    html += '<div class="' + cls + ' font-semibold">' + sign + fmt(amount) + '</div>';
+    html += '</div>';
+  }
+  
+  // Add totals
+  html += '<div class="mt-4 pt-3 border-t border-slate-600">';
+  html += '<div class="flex justify-between font-semibold"><span>Total Income:</span><span class="amt-pos">' + fmt(totalIncome) + '</span></div>';
+  html += '<div class="flex justify-between font-semibold"><span>Total Expenses:</span><span class="amt-neg">' + fmt(totalExpenses) + '</span></div>';
+  html += '<div class="flex justify-between font-bold text-lg border-t border-slate-600 pt-2 mt-2">';
+  html += '<span>Net:</span><span class="' + (net >= 0 ? 'amt-pos' : 'amt-neg') + '">' + fmt(net) + '</span>';
+  html += '</div>';
+  html += '</div>';
+  
+  html += '</div>';
+  
+  return html;
+}
+
+function exportCustomReportCSV() {
+  var startDate = getVal('reportStartDate');
+  var endDate = getVal('reportEndDate');
+  
+  if(!startDate || !endDate) {
+    alert('Please select both start and end dates.');
+    return;
+  }
+  
+  var range = {
+    start: new Date(startDate),
+    end: new Date(endDate + 'T23:59:59')
+  };
+  
+  // Get filtered events
+  var calendarEvents = generateCalendarData(5, 10);
+  var periodEvents = calendarEvents.filter(function(event) {
+    var eventDate = new Date(event.date);
+    return eventDate >= range.start && eventDate <= range.end;
+  });
+  
+  var filteredEvents = periodEvents.filter(function(event) {
+    var includeIncome = el('reportFilterIncome') && el('reportFilterIncome').checked;
+    var includeExpense = el('reportFilterExpense') && el('reportFilterExpense').checked;
+    var includeRecurring = el('reportFilterRecurring') && el('reportFilterRecurring').checked;
+    var includeOneTime = el('reportFilterOneTime') && el('reportFilterOneTime').checked;
+    
+    var kindMatch = (event.entry.kind === 'Income' && includeIncome) || 
+                    (event.entry.kind === 'Expense' && includeExpense);
+    
+    var typeMatch = (event.type === 'recurring' && includeRecurring) || 
+                    (event.type === 'single' && includeOneTime);
+    
+    return kindMatch && typeMatch;
+  });
+  
+  // Generate CSV
+  var csv = 'Date,Description,Type,Category,Method,Amount,Kind\n';
+  
+  var totalIncome = 0;
+  var totalExpenses = 0;
+  
+  for(var i = 0; i < filteredEvents.length; i++) {
+    var event = filteredEvents[i];
+    var amount = Number(event.amount) || 0;
+    var kind = event.entry.kind;
+    var cat = kind === 'Expense' ? (event.entry.irscat || '—') : 'Revenue';
+    var method = event.entry.method || '—';
+    var type = event.type === 'recurring' ? event.entry.freq : 'One-time';
+    
+    if(kind === 'Income') {
+      totalIncome += amount;
+    } else {
+      totalExpenses += amount;
+    }
+    
+    csv += '"' + event.date + '","' + event.entry.desc + '","' + type + '","' + cat + '","' + method + '",' + amount + ',' + kind + '\n';
+  }
+  
+  // Add summary
+  csv += '\n';
+  csv += 'SUMMARY\n';
+  csv += 'Total Income,' + totalIncome + '\n';
+  csv += 'Total Expenses,' + totalExpenses + '\n';
+  csv += 'Net,' + (totalIncome - totalExpenses) + '\n';
+  
+  // Download CSV
+  var blob = new Blob([csv], {type: 'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'transaction-report-' + startDate + '-to-' + endDate + '.csv';
+  a.click();
+  
+  closeCustomReportModal();
+}
+
+function printCustomReport() {
+  var startDate = getVal('reportStartDate');
+  var endDate = getVal('reportEndDate');
+  
+  if(!startDate || !endDate) {
+    alert('Please select both start and end dates.');
+    return;
+  }
+  
+  var range = {
+    start: new Date(startDate),
+    end: new Date(endDate + 'T23:59:59')
+  };
+  
+  // Get filtered events (same logic as preview)
+  var calendarEvents = generateCalendarData(5, 10);
+  var periodEvents = calendarEvents.filter(function(event) {
+    var eventDate = new Date(event.date);
+    return eventDate >= range.start && eventDate <= range.end;
+  });
+  
+  var filteredEvents = periodEvents.filter(function(event) {
+    var includeIncome = el('reportFilterIncome') && el('reportFilterIncome').checked;
+    var includeExpense = el('reportFilterExpense') && el('reportFilterExpense').checked;
+    var includeRecurring = el('reportFilterRecurring') && el('reportFilterRecurring').checked;
+    var includeOneTime = el('reportFilterOneTime') && el('reportFilterOneTime').checked;
+    
+    var kindMatch = (event.entry.kind === 'Income' && includeIncome) || 
+                    (event.entry.kind === 'Expense' && includeExpense);
+    
+    var typeMatch = (event.type === 'recurring' && includeRecurring) || 
+                    (event.type === 'single' && includeOneTime);
+    
+    return kindMatch && typeMatch;
+  });
+  
+  // Generate print HTML (reuse existing function with modifications)
+  var printHtml = generatePrintHTML(filteredEvents, range, 'custom');
+  
+  // Open print window
+  var printWindow = window.open('', '_blank');
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.print();
+  
+  closeCustomReportModal();
+}
+
+window.openCustomReportModal = openCustomReportModal;
+window.closeCustomReportModal = closeCustomReportModal;
+window.previewCustomReport = previewCustomReport;
+window.exportCustomReportCSV = exportCustomReportCSV;
+window.printCustomReport = printCustomReport;
+
+function editSingleOccurrence(entryId, eventDate) {
+  var originalEntry = entries.find(function(e) { return e.id === entryId; });
+  if(!originalEntry) return;
+  
+  // Create a one-time entry for this specific occurrence
+  var oneTimeEntry = {
+    id: uid(),
+    date: eventDate,
+    desc: originalEntry.desc,
+    amount: finalOccurrenceAmount(originalEntry, eventDate),
+    kind: originalEntry.kind,
+    freq: 'One-Time',
+    irscat: originalEntry.irscat,
+    method: originalEntry.method,
+    rec: {
+      type: 'intermitent',
+      start: eventDate,
+      day: null,
+      month: null,
+      end: null,
+      endReason: null,
+      finalAmount: null,
+      active: true,
+      subId: uid(),
+      overrideFor: originalEntry.id, // Mark this as an override
+      overrideDate: eventDate
+    }
+  };
+  
+  // Add exclusion to original entry
+  if(!originalEntry.rec.exclusions) originalEntry.rec.exclusions = [];
+  originalEntry.rec.exclusions.push(eventDate);
+  
+  // Add the one-time entry
+  entries.push(oneTimeEntry);
+  
+  // Close calendar modal if open and open edit modal
+  if(el('calMask') && el('calMask').style.display === 'grid') {
+    hideMask('calMask');
+  }
+  
+  // Open edit modal for the new one-time entry with high priority
+  editingId = oneTimeEntry.id;
+  editingScope = 'single';
+  editingEventDate = eventDate;
+  openModal(oneTimeEntry.kind, oneTimeEntry);
+}
+
+function editFutureOccurrences(entryId, fromDate) {
+  var originalEntry = entries.find(function(e) { return e.id === entryId; });
+  if(!originalEntry) return;
+  
+  ensureRec(originalEntry);
+  var recType = normalizeType(originalEntry.rec.type);
+  var fromDateObj = new Date(fromDate);
+  
+  // Calculate the previous occurrence date to end the original series
+  var prevDate;
+  
+  if(recType === 'monthly') {
+    var prevMonth = new Date(fromDateObj);
+    prevMonth.setMonth(prevMonth.getMonth() - 1);
+    var targetDay = clampDay(prevMonth.getFullYear(), prevMonth.getMonth(), Number(originalEntry.rec.day || 1));
+    prevMonth.setDate(targetDay);
+    prevDate = ymd(prevMonth);
+  } else if(recType === 'yearly') {
+    var prevYear = new Date(fromDateObj);
+    prevYear.setFullYear(prevYear.getFullYear() - 1);
+    var targetMonth = (Number(originalEntry.rec.month || 1) - 1);
+    var targetDay = clampDay(prevYear.getFullYear(), targetMonth, Number(originalEntry.rec.day || 1));
+    prevYear.setMonth(targetMonth);
+    prevYear.setDate(targetDay);
+    prevDate = ymd(prevYear);
+  } else {
+    prevDate = fromDate;
+  }
+  
+  // Check if there was actually a previous occurrence
+  var originalStart = new Date(originalEntry.rec.start || originalEntry.date);
+  var prevDateObj = new Date(prevDate);
+  
+  if(prevDateObj >= originalStart) {
+    // End the original series at the previous occurrence
+    originalEntry.rec.end = prevDate;
+    originalEntry.rec.active = false;
+  } else {
+    // If no previous occurrence, just mark original as inactive without ending it
+    originalEntry.rec.active = false;
+  }
+  
+  // Create a new recurring entry starting from the current date
+  var newEntry = {
+    id: uid(),
+    date: fromDate,
+    desc: originalEntry.desc,
+    amount: originalEntry.amount,
+    kind: originalEntry.kind,
+    freq: originalEntry.freq,
+    irscat: originalEntry.irscat,
+    method: originalEntry.method,
+    rec: {
+      type: originalEntry.rec.type,
+      start: fromDate,
+      day: originalEntry.rec.day,
+      month: originalEntry.rec.month,
+      end: null,
+      endReason: null,
+      finalAmount: null,
+      active: true,
+      subId: uid()
+    }
+  };
+  
+  // Add the new entry
+  entries.push(newEntry);
+  
+  // Close calendar modal if open
+  if(el('calMask') && el('calMask').style.display === 'grid') {
+    hideMask('calMask');
+  }
+  
+  // Open edit modal for the new entry (user can modify it)
+  editingId = newEntry.id; // Set editing ID so modal knows it's editing this new entry
+  editingScope = 'future';
+  editingEventDate = fromDate;
+  openModal(newEntry.kind, newEntry);
+}
+
+// ===== MODAL (Add/Edit) =====
+function populateIRS(){ var html=''; for(var i=0;i<IRS_CATEGORIES.length;i++){ html += '<option>'+IRS_CATEGORIES[i]+'</option>'; } setHTML('mIRS', html); }
+function populateRecurrencePickers(){
+  // Monthly days 1..31
+  var dOpts=''; for(var d=1; d<=31; d++){ dOpts += '<option value="'+d+'">'+d+'</option>'; } setHTML('mMonthDay', dOpts);
+  // Year months 1..12
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; var mOpts='';
+  for(var i=1;i<=12;i++){ mOpts += '<option value="'+i+'">'+months[i-1]+'</option>'; } setHTML('mYearMonth', mOpts);
+  // Year day 1..31
+  setHTML('mYearDay', dOpts);
+}
+function openModal(presetKind, edit){ 
+  if(!presetKind) presetKind='Expense'; 
+  showMask('modalMask', true); 
+  setText('modalTitle', edit ? ('Edit '+edit.kind) : ('Add '+presetKind));
+  
+  // base fields
+  setVal('mKind', edit ? edit.kind : presetKind); 
+  setVal('mDate', edit ? (edit.date || '') : ''); 
+  setVal('mDesc', edit ? (edit.desc || '') : ''); 
+  setVal('mAmount', (edit && edit.amount!=null) ? String(edit.amount) : ''); 
+  setVal('mMethod', edit ? (edit.method || '') : '');
+  
+  // IRS category - default to "Office expense" for new expenses
+  if(edit) {
+    setVal('mIRS', edit.irscat || 'Office expense');
+  } else if(presetKind === 'Expense') {
+    setVal('mIRS', 'Office expense');
+  }
+  
+  // recurrence
+  var recType='intermitent', day=1, yMonth=1, yDay=1; 
+  if(edit){ 
+    ensureRec(edit); 
+    recType=normalizeType(edit.rec.type||'intermitent'); 
+    day=Number(edit.rec.day||1); 
+    yMonth=Number(edit.rec.month||1); 
+    yDay=Number(edit.rec.day||1); 
+  }
+  setVal('mRecurrence', recType);
+  setVal('mMonthDay', day); 
+  setVal('mYearMonth', yMonth); 
+  setVal('mYearDay', yDay);
+  
+  showRecBlocks();
+  editingId = edit ? edit.id : null;
+  toggleIRS(); 
+  
+  // Show/hide delete button based on whether we're editing
+  var deleteBtn = el('deleteFromModal');
+  if(deleteBtn) {
+    deleteBtn.classList.toggle('hidden', !edit);
+  }
+  
+  setTimeout(function(){ 
+    var d=el('mDesc'); 
+    if(d) d.focus(); 
+  },10);
+}
+function closeModal(){ 
+  hideMask('modalMask'); 
+  editingId=null; 
+  editingScope=null;
+  editingEventDate=null;
+  
+  // Clear any auto-close timeouts
+  if(window.modalTimeout) {
+    clearTimeout(window.modalTimeout);
+    window.modalTimeout = null;
+  }
+}
+function toggleIRS(){ var isExp = (getVal('mKind') === 'Expense'); var wrap=el('irsWrap'); if(wrap) wrap.style.display = isExp? 'block':'none'; }
+function showRecBlocks(){ var t=getVal('mRecurrence'); el('recMonthly').classList.toggle('hidden', t!=='monthly'); el('recYearly').classList.toggle('hidden', t!=='yearly'); }
+function buildFromModal(){ 
+  var amt = parseAmount(getVal('mAmount'));
+  var recType = normalizeType(getVal('mRecurrence')); 
+  var freq = (recType==='monthly') ? 'Monthly' : (recType==='yearly') ? 'Yearly' : 'One-Time';
+  
+  var day = null;
+  var month = null;
+  
+  if(recType === 'monthly') {
+    day = Number(getVal('mMonthDay'));
+  } else if(recType === 'yearly') {
+    day = Number(getVal('mYearDay'));
+    month = Number(getVal('mYearMonth'));
+  }
+  
+  var item = { 
+    id: editingId || uid(), 
+    date: getVal('mDate'), 
+    desc: getVal('mDesc').trim(), 
+    amount: amt, 
+    kind: getVal('mKind'), 
+    freq: freq, 
+    irscat: (getVal('mKind')==='Expense') ? getVal('mIRS') : undefined, 
+    method: getVal('mMethod').trim(), 
+    rec: { 
+      type: recType, 
+      start: getVal('mDate') || ymd(new Date()), 
+      day: day, 
+      month: month, 
+      end: null, 
+      endReason: null, 
+      finalAmount: null, 
+      active: (recType==='monthly'||recType==='yearly'), 
+      subId: editingId || uid() 
+    } 
+  };
+  
+
+  
+  if(!item.desc.trim()){ 
+    alert('Enter a description.'); 
+    setTimeout(function() { var desc = el('mDesc'); if(desc) desc.focus(); }, 100);
+    return null; 
+  } 
+  if(!item.amount || item.amount <= 0){ 
+    alert('Enter a valid amount like 123.45'); 
+    setTimeout(function() { var amt = el('mAmount'); if(amt) amt.focus(); }, 100);
+    return null; 
+  }
+  
+  return item; 
+}
+function upsert(item){ 
+  var found = false; 
+  for(var i=0;i<entries.length;i++){ 
+    if(entries[i].id===item.id){ 
+      entries[i]=item; 
+      found=true; 
+      break; 
+    } 
+  } 
+  if(!found) {
+    entries.push(item);
+  }
+  
+  render(); 
+}
+
+// ===== CALENDAR =====
+function monthTitle(d){ return d.toLocaleString(undefined,{month:'long', year:'numeric'}); }
+function monthStart(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function monthEnd(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+function renderCalendar(){ 
+  setText('calTitle', 'Calendar — '+monthTitle(calCursor)); 
+  var start = monthStart(calCursor); 
+  var end = monthEnd(calCursor); 
+  var gridHTML = ''; 
+  var firstWeekday = start.getDay(); 
+  
+  for(var i=0;i<firstWeekday;i++){ 
+    gridHTML += '<div></div>'; 
+  }
+  for(var day=1; day<=end.getDate(); day++){
+    var ds = ymd(new Date(calCursor.getFullYear(), calCursor.getMonth(), day)); 
+    var dayEvents = getCalendarEventsForDate(ds);
+    
+
+    
+    var items = dayEvents.map(function(event){ 
+      var e = event.entry; 
+      var sign = e.kind==='Income'?'+':'−'; 
+      var cls = e.kind==='Income'?'amt-pos':'amt-neg'; 
+      var tag = event.isFinal ? ' (final)': ''; 
+      
+      return '<div class="text-xs flex items-center justify-between gap-1 cursor-pointer hover:bg-slate-700/30 rounded px-1 py-0.5 group" onclick="showEditMenuGlobal(\''+e.id+'\', \''+ds+'\')">'+
+        '<div class="flex items-center gap-1">'+
+          '<span class="cal-dot '+(cls)+'" style="background:currentColor"></span>'+
+          '<span>'+sign+fmt(event.amount)+tag+'</span>'+
+        '</div>'+
+        '<div class="opacity-0 group-hover:opacity-100 flex gap-1">'+
+          '<button class="text-xs px-1 rounded bg-slate-600/80 hover:bg-slate-600" onclick="event.stopPropagation(); showEditMenuGlobal(\''+e.id+'\', \''+ds+'\')">⚙️</button>'+
+        '</div>'+
+      '</div>'; 
+    }).join('');
+    
+    gridHTML += '<div class="glass rounded-lg p-2 cal-cell">'+
+      '<div class="flex items-center justify-between mb-1">'+
+        '<div class="text-xs text-slate-400">'+day+'</div>'+
+        '<button class="add-btn text-xs px-1 py-0.5 rounded bg-emerald-600/70 hover:bg-emerald-600 opacity-0" onclick="addTransactionForDate(\''+ds+'\')">+</button>'+
+      '</div>'+ 
+      (items||'<div class="text-[10px] text-slate-500 mt-1">—</div>') +
+      '</div>';
+  }
+  setHTML('calGrid', gridHTML);
+}
+function renderUpcomingList(){ 
+  var upcomingEvents = getUpcomingPayments();
+  
+  if(!upcomingEvents.length) {
+    setHTML('upcomingList', '<div class="text-slate-400 text-sm">No upcoming payments.</div>');
+    return;
+  }
+  
+  // Group by month
+  var byMonth = {};
+  for(var i=0; i<upcomingEvents.length; i++){
+    var event = upcomingEvents[i];
+    var monthKey = event.date.slice(0,7); // YYYY-MM
+    if(!byMonth[monthKey]) byMonth[monthKey] = [];
+    byMonth[monthKey].push(event);
+  }
+  
+  var html = '';
+  for(var month in byMonth){
+    var monthEvents = byMonth[month];
+    var monthTotal = 0;
+    
+    for(var j=0; j<monthEvents.length; j++){
+      var event = monthEvents[j];
+      monthTotal += (event.entry.kind === 'Income' ? 1 : -1) * (Number(event.amount) || 0);
+    }
+    
+    html += '<div class="glass p-3 rounded-xl">';
+    html += '<div class="flex items-center justify-between mb-2">';
+    html += '<h3 class="font-semibold">' + month + '</h3>';
+    html += '<div class="text-sm text-slate-300">Total: ' + fmt(monthTotal) + '</div>';
+    html += '</div>';
+    
+    for(var k=0; k<monthEvents.length; k++){
+      var event = monthEvents[k];
+      var sign = event.entry.kind === 'Income' ? '+' : '−';
+      var cls = event.entry.kind === 'Income' ? 'amt-pos' : 'amt-neg';
+      var tag = event.isFinal ? ' (final)' : '';
+      
+      html += '<div class="flex items-center justify-between text-sm py-1 cursor-pointer hover:bg-slate-700/30 rounded px-2" onclick="showEditMenuGlobal(\''+event.entry.id+'\', \''+event.date+'\')">';
+      html += '<div>' + event.date + ' — ' + event.entry.desc + tag + '</div>';
+      html += '<div class="' + cls + ' font-semibold">' + sign + fmt(event.amount) + '</div>';
+      html += '</div>';
+    }
+    
+    html += '</div>';
+  }
+  
+  setHTML('upcomingList', html);
+}
+
+// ===== PAST PAYMENTS VIEW =====
+function renderPastPayments(){ 
+  var pastEvents = getPastPayments();
+  
+  if(!pastEvents.length) {
+    setHTML('pastList', '<div class="text-slate-400">No past payments yet.</div>');
+    return;
+  }
+  
+  // Sort events by date (most recent first)
+  pastEvents.sort(function(a, b) {
+    return b.date.localeCompare(a.date); // Most recent first
+  });
+  
+  // Group by month
+  var byMonth = {};
+  var monthOrder = [];
+  for(var i=0; i<pastEvents.length; i++){
+    var event = pastEvents[i];
+    var monthKey = event.date.slice(0,7); // YYYY-MM
+    if(!byMonth[monthKey]) {
+      byMonth[monthKey] = [];
+      monthOrder.push(monthKey);
+    }
+    byMonth[monthKey].push(event);
+  }
+  
+  // Sort months in descending order (most recent first)
+  monthOrder.sort(function(a, b) { return b.localeCompare(a); });
+  
+  var html = '';
+  for(var m = 0; m < monthOrder.length; m++){
+    var month = monthOrder[m];
+    var monthEvents = byMonth[month];
+    var monthTotal = 0;
+    
+    for(var j=0; j<monthEvents.length; j++){
+      var event = monthEvents[j];
+      monthTotal += (event.entry.kind === 'Income' ? 1 : -1) * (Number(event.amount) || 0);
+    }
+    
+    html += '<div class="glass p-3 rounded-xl">';
+    html += '<div class="flex items-center justify-between mb-2">';
+    html += '<h3 class="font-semibold">' + month + '</h3>';
+    html += '<div class="text-sm text-slate-300">Total: ' + fmt(monthTotal) + '</div>';
+    html += '</div>';
+    
+    for(var k=0; k<monthEvents.length; k++){
+      var event = monthEvents[k];
+      var sign = event.entry.kind === 'Income' ? '+' : '−';
+      var cls = event.entry.kind === 'Income' ? 'amt-pos' : 'amt-neg';
+      var tag = event.isFinal ? ' (final)' : '';
+      var endReason = event.entry.rec && event.entry.rec.endReason ? 
+        ' — ' + event.entry.rec.endReason : '';
+      
+      html += '<div class="flex items-center justify-between text-sm py-1 cursor-pointer hover:bg-slate-700/30 rounded px-2" onclick="showEditMenuGlobal(\''+event.entry.id+'\', \''+event.date+'\')">';
+      html += '<div>' + event.date + ' — ' + event.entry.desc + tag + endReason + '</div>';
+      html += '<div class="' + cls + ' font-semibold">' + sign + fmt(event.amount) + '</div>';
+      html += '</div>';
+    }
+    
+    html += '</div>';
+  }
+  
+  setHTML('pastList', html);
+}
+
+
+// Subscription manager removed - now using calendar-based editing
+
+// ===== RECEIPTS (IndexedDB) =====
+var rcpDB, rcpReady=false; 
+function rcpOpen(){ return new Promise(function(resolve,reject){ var req=indexedDB.open('accounting_receipts',1); req.onupgradeneeded=function(ev){ var db=ev.target.result; if(!db.objectStoreNames.contains('receipts')){ db.createObjectStore('receipts',{keyPath:'id'}); } }; req.onsuccess=function(ev){ rcpDB=ev.target.result; rcpReady=true; resolve(); }; req.onerror=function(e){ console.error('IDB open error',e); reject(e); }; }); }
+function rcpPut(obj){ return new Promise(function(resolve,reject){ var tx=rcpDB.transaction(['receipts'],'readwrite'); var st=tx.objectStore('receipts'); var req=st.put(obj); req.onsuccess=function(){ resolve(); }; req.onerror=function(e){ reject(e); }; }); }
+function rcpAll(){ return new Promise(function(resolve,reject){ var tx=rcpDB.transaction(['receipts'],'readonly'); var st=tx.objectStore('receipts'); var req=st.getAll(); req.onsuccess=function(){ resolve(req.result||[]); }; req.onerror=function(e){ reject(e); }; }); }
+function rcpDelete(id){ return new Promise(function(resolve,reject){ var tx=rcpDB.transaction(['receipts'],'readwrite'); var st=tx.objectStore('receipts'); var req=st.delete(id); req.onsuccess=function(){ resolve(); }; req.onerror=function(e){ reject(e); }; }); }
+
+function renderReceipts(){ if(!rcpReady){ setHTML('rcpList','<div class="text-slate-400">Loading…</div>'); return; } rcpAll().then(function(list){ if(!list.length){ setHTML('rcpList','<div class="text-slate-400">No receipts yet. Upload above.</div>'); return; } var html=''; list.sort(function(a,b){ return (a.created||'').localeCompare(b.created||''); }); for(var i=0;i<list.length;i++){ var r=list[i]; var type=(r.fileType||'').startsWith('image/')?'image':'file'; var url=URL.createObjectURL(r.blob); html += '<div class="glass p-3 rounded-xl">'+
+  '<div class="text-sm font-semibold">'+(r.title||r.fileName)+'</div>'+ 
+  '<div class="text-xs text-slate-400">'+(r.created||'')+'</div>'+ 
+  (type==='image'? '<img src="'+url+'" alt="receipt" class="mt-2 rounded-lg max-h-64 w-full object-contain"/>':'<div class="mt-2 text-xs">PDF/File</div>')+
+  '<div class="mt-2 flex gap-2">'+
+  '<a href="'+url+'" download="'+(r.fileName||'receipt')+'" class="btn bg-slate-700/70">Download</a>'+ 
+  '<button class="btn bg-rose-600/80" onclick="deleteReceipt(\''+r.id+'\')">Delete</button>'+
+  '</div>'+ (r.entryId? '<div class="text-xs text-slate-400 mt-2">Linked to: '+(entryLabel(r.entryId))+'</div>':'' )+ '</div>'; }
+ setHTML('rcpList', html);
+ }).catch(function(e){ setHTML('rcpList','<div class="text-rose-400">Error loading receipts.</div>'); console.error(e); }); }
+function entryLabel(id){ for(var i=0;i<entries.length;i++){ if(entries[i].id===id){ return entries[i].date+ ' — '+entries[i].desc; } } return id; }
+window.deleteReceipt = function(id){ if(!confirm('Delete this receipt?')) return; rcpDelete(id).then(renderReceipts); };
+function hookReceiptUpload(){ var inp=el('rcpInput'); if(!inp) return; inp.addEventListener('change', function(ev){ var files = ev.target.files; if(!files||!files.length) return; var ops=[]; for(var i=0;i<files.length;i++){ (function(file){ var reader=new FileReader(); reader.onload=function(){ var blob=new Blob([reader.result],{type:file.type}); var obj={ id:uid(), fileName:file.name, fileType:file.type, created: new Date().toLocaleString(), entryId:null, blob:blob, title:file.name }; ops.push(rcpPut(obj)); if(ops.length===files.length){ Promise.all(ops).then(renderReceipts); } }; reader.readAsArrayBuffer(file); })(files[i]); }
+    ev.target.value='';
+  }); }
+
+// ===== APP INIT =====
+ function initApp(){ 
+   populateIRS(); 
+   populateRecurrencePickers();
+   populatePeriodSelectors();
+   loadEntries(); 
+   render(); 
+  
+  // Modal accessibility helpers
+  function setupModalBehavior(maskId, closeCallback) {
+    var mask = el(maskId);
+    if(mask) {
+      // Backdrop click to close
+      mask.addEventListener('click', function(e) {
+        if(e.target === mask) closeCallback();
+      });
+      // ESC key support will be handled globally
+    }
+  }
+
+     // Global ESC key handler for all modals
+   document.addEventListener('keydown', function(e) {
+     if(e.key === 'Escape') {
+       // Check which modals are open and close them (high priority first)
+       if(el('editTypeMask') && el('editTypeMask').style.display === 'grid') closeEditTypeModal();
+       else if(el('customReportMask') && el('customReportMask').style.display === 'grid') closeCustomReportModal();
+       else if(el('printMask') && el('printMask').style.display === 'grid') closePrintModal();
+       else if(el('modalMask') && el('modalMask').style.display === 'grid') closeModal();
+       else if(el('calMask') && el('calMask').style.display === 'grid') { hideMask('calMask'); }
+       else if(el('rcpMask') && el('rcpMask').style.display === 'grid') { hideMask('rcpMask'); }
+     }
+   });
+
+  // Main buttons
+  var aE=el('addExpenseBtn'); if(aE) aE.onclick=function(){ openModal('Expense'); };
+  var aI=el('addIncomeBtn');  if(aI) aI.onclick=function(){ openModal('Income'); };
+  var close=el('closeModal'); if(close) close.onclick=closeModal; 
+  var cancel=el('cancelBtn'); if(cancel) cancel.onclick=closeModal;
+  
+     // Setup modal behaviors
+   setupModalBehavior('modalMask', closeModal);
+   setupModalBehavior('calMask', function() { hideMask('calMask'); });
+   setupModalBehavior('rcpMask', function() { hideMask('rcpMask'); });
+   setupModalBehavior('editTypeMask', closeEditTypeModal);
+   setupModalBehavior('printMask', closePrintModal);
+   setupModalBehavior('customReportMask', closeCustomReportModal);
+   
+   // Modal close buttons
+   var closeEditType = el('closeEditType'); 
+   if(closeEditType) closeEditType.onclick = closeEditTypeModal;
+   
+   var closePrint = el('closePrint');
+   if(closePrint) closePrint.onclick = closePrintModal;
+   
+   var cancelPrint = el('cancelPrint');
+   if(cancelPrint) cancelPrint.onclick = closePrintModal;
+
+  // Period selector handlers
+  var p1 = el('period1Select'); if(p1) p1.addEventListener('change', handlePeriodSelectorChange);
+  var p2 = el('period2Select'); if(p2) p2.addEventListener('change', handlePeriodSelectorChange);  
+  var p3 = el('period3Select'); if(p3) p3.addEventListener('change', handlePeriodSelectorChange);
+  
+  // KPI period selector handler
+  var kpiPeriod = el('kpiPeriodSelect'); if(kpiPeriod) kpiPeriod.addEventListener('change', function() {
+    var customRange = el('kpiCustomRange');
+    if(customRange) {
+      customRange.classList.toggle('hidden', this.value !== 'custom');
+    }
+    render();
+  });
+  
+  // KPI custom date handlers
+  var kpiStart = el('kpiStartDate'); if(kpiStart) kpiStart.addEventListener('change', render);
+  var kpiEnd = el('kpiEndDate'); if(kpiEnd) kpiEnd.addEventListener('change', render);
+  
+  // Print functionality
+  var printBtn = el('printTransactionsBtn'); if(printBtn) printBtn.onclick = openPrintModal;
+  var printPeriodSel = el('printPeriod'); if(printPeriodSel) printPeriodSel.addEventListener('change', handlePrintPeriodChange);
+  var generatePrintBtn = el('generatePrint'); if(generatePrintBtn) generatePrintBtn.onclick = generatePrintView;
+  
+  // Delete from modal
+  var deleteFromModalBtn = el('deleteFromModal'); 
+  if(deleteFromModalBtn) deleteFromModalBtn.onclick = function() {
+    if(!editingId) return;
+    
+    var confirmMsg = 'Delete this transaction?';
+    if(editingScope === 'single') {
+      confirmMsg = 'Delete only this occurrence (' + editingEventDate + ')?';
+    } else if(editingScope === 'future') {
+      confirmMsg = 'Delete this and all future occurrences (from ' + editingEventDate + ' onwards)?';
+    } else {
+      confirmMsg = 'Delete entire series?';
+    }
+    
+    if(!confirm(confirmMsg)) return;
+    
+    if(editingScope === 'single') {
+      // Delete single occurrence - add to exclusions
+      var originalEntry = entries.find(function(e) { return e.id === editingId; });
+      if(originalEntry && originalEntry.rec) {
+        if(!originalEntry.rec.exclusions) originalEntry.rec.exclusions = [];
+        originalEntry.rec.exclusions.push(editingEventDate);
+      }
+    } else if(editingScope === 'future') {
+      // Delete future occurrences - end the series at previous occurrence
+      var originalEntry = entries.find(function(e) { return e.id === editingId; });
+      if(originalEntry) {
+        var recType = normalizeType(originalEntry.rec.type);
+        var fromDateObj = new Date(editingEventDate);
+        
+        if(recType === 'monthly') {
+          var prevMonth = new Date(fromDateObj);
+          prevMonth.setMonth(prevMonth.getMonth() - 1);
+          var targetDay = clampDay(prevMonth.getFullYear(), prevMonth.getMonth(), Number(originalEntry.rec.day || 1));
+          prevMonth.setDate(targetDay);
+          originalEntry.rec.end = ymd(prevMonth);
+        } else if(recType === 'yearly') {
+          var prevYear = new Date(fromDateObj);
+          prevYear.setFullYear(prevYear.getFullYear() - 1);
+          originalEntry.rec.end = ymd(prevYear);
+        }
+        originalEntry.rec.active = false;
+      }
+    } else {
+      // Delete entire series
+      window.delEntry(editingId);
+    }
+    
+    closeModal();
+    render();
+  };
+  
+  // Custom date range handlers
+  var c1s = el('custom1Start'); if(c1s) c1s.addEventListener('change', render);
+  var c1e = el('custom1End'); if(c1e) c1e.addEventListener('change', render);
+  var c2s = el('custom2Start'); if(c2s) c2s.addEventListener('change', render);
+  var c2e = el('custom2End'); if(c2e) c2e.addEventListener('change', render);
+  var c3s = el('custom3Start'); if(c3s) c3s.addEventListener('change', render);
+  var c3e = el('custom3End'); if(c3e) c3e.addEventListener('change', render);
+  var mk=el('mKind'); if(mk) mk.addEventListener('change', toggleIRS);
+  var recSel=el('mRecurrence'); if(recSel) recSel.addEventListener('change', showRecBlocks);
+  
+  // Date change handler for auto-population
+  var mDate=el('mDate'); if(mDate) mDate.addEventListener('change', function() {
+    // Only auto-populate for new entries (not when editing existing ones)
+    if(!editingId && this.value) {
+      var selectedDate = new Date(this.value);
+      var day = selectedDate.getDate();
+      var month = selectedDate.getMonth() + 1; // 1-based month
+      
+      // Auto-populate monthly day
+      setVal('mMonthDay', day);
+      
+      // Auto-populate yearly month and day
+      setVal('mYearMonth', month);
+      setVal('mYearDay', day);
+    }
+  });
+  var save=el('saveBtn'); if(save) save.onclick=function(e){ 
+    if(e) e.preventDefault();
+    var it=buildFromModal(); 
+    if(!it) return; // Stay open if validation fails
+    upsert(it); 
+    closeModal(); 
+  };
+  var saveAdd=el('saveAddBtn'); if(saveAdd) saveAdd.onclick=function(e){ 
+    if(e) e.preventDefault();
+    var it=buildFromModal(); 
+    if(!it) return; // Stay open if validation fails
+    upsert(it); 
+    editingId=null; 
+    setVal('mDesc',''); 
+    setVal('mAmount',''); 
+    setVal('mMethod',''); 
+    var d=el('mDesc'); 
+    if(d) setTimeout(function(){ d.focus(); },10); 
+  };
+
+  // Export/Import
+  var ex=el('exportBtn'); if(ex) ex.onclick=function(){ var blob=new Blob([JSON.stringify({ entries: entries, exportedAt: nowIso() }, null, 2)], {type:'application/json'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='accounting-export-'+new Date().toISOString().slice(0,10)+'.json'; a.click(); lastExportAt=Date.now(); localStorage.setItem('acct_lastExportAt', String(lastExportAt)); setText('saveStatus','Exported '+new Date(lastExportAt).toLocaleTimeString()); };
+  var im=el('importInput'); if(im) im.addEventListener('change', function(ev){ var file=ev.target.files && ev.target.files[0]; if(!file) return; var reader=new FileReader(); reader.onload=function(){ try{ var data=JSON.parse(reader.result); if(data && data.entries && data.entries.map){ entries=data.entries.map(function(d){ if(!d.id) d.id=uid(); ensureRec(d); return d; }); render(); alert('Import complete'); } else { throw new Error('Invalid file'); } }catch(err){ alert('Import failed: '+err.message); } }; reader.readAsText(file); });
+
+  // Calendar buttons
+  var oc=el('openCalendarBtn'); if(oc) oc.onclick=function(){ showMask('calMask'); renderCalendar(); };
+  var cc=el('closeCal'); if(cc) cc.onclick=function(){ hideMask('calMask'); };
+  var prev=el('calPrev'); if(prev) prev.onclick=function(){ calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()-1, 1); renderCalendar(); };
+  var next=el('calNext'); if(next) next.onclick=function(){ calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()+1, 1); renderCalendar(); };
+  var mCal=el('calModeCalendar'); var mList=el('calModeList'); var mPast=el('calModePast');
+  if(mCal && mList && mPast){ mCal.onclick=function(){ el('calViewCalendar').classList.remove('hidden'); el('calViewList').classList.add('hidden'); el('calViewPast').classList.add('hidden'); renderCalendar(); }; mList.onclick=function(){ el('calViewCalendar').classList.add('hidden'); el('calViewList').classList.remove('hidden'); el('calViewPast').classList.add('hidden'); renderUpcomingList(); }; mPast.onclick=function(){ el('calViewCalendar').classList.add('hidden'); el('calViewList').classList.add('hidden'); el('calViewPast').classList.remove('hidden'); renderPastPayments(); }; }
+
+     // All Transactions filter handlers
+  var filterAllIncome = el('filterAllIncome'); if(filterAllIncome) filterAllIncome.addEventListener('change', renderAllTransactions);
+  var filterAllExpense = el('filterAllExpense'); if(filterAllExpense) filterAllExpense.addEventListener('change', renderAllTransactions);
+  var filterAllRecurring = el('filterAllRecurring'); if(filterAllRecurring) filterAllRecurring.addEventListener('change', renderAllTransactions);
+  var filterAllOneTime = el('filterAllOneTime'); if(filterAllOneTime) filterAllOneTime.addEventListener('change', renderAllTransactions);
+  
+  // Custom report functionality
+  var customReportBtn = el('generateCustomReport'); if(customReportBtn) customReportBtn.onclick = openCustomReportModal;
+  var closeCustomReportBtn = el('closeCustomReport'); if(closeCustomReportBtn) closeCustomReportBtn.onclick = closeCustomReportModal;
+  var previewReportBtn = el('previewReport'); if(previewReportBtn) previewReportBtn.onclick = previewCustomReport;
+  var exportReportBtn = el('exportReport'); if(exportReportBtn) exportReportBtn.onclick = exportCustomReportCSV;
+  var printReportBtn = el('printReport'); if(printReportBtn) printReportBtn.onclick = printCustomReport;
+
+  // Receipts
+  rcpOpen().then(function(){ renderReceipts(); });
+  var or=el('openReceiptsBtn'); if(or) or.onclick=function(){ showMask('rcpMask'); renderReceipts(); };
+  var cr=el('closeRcp'); if(cr) cr.onclick=function(){ hideMask('rcpMask'); };
+  hookReceiptUpload();
+
+
+
+  // Warn on close if no recent export (last 24h)
+  window.addEventListener('beforeunload', function(e){ var day=86400000; if(Date.now()-lastExportAt>day && entries.length){ e.preventDefault(); e.returnValue=''; } });
+}
+
+
+
+// ===== AUTH & BOOT =====
+function doLogin(){ var input=(el('pw')&&el('pw').value||'').trim(); if(input===PASSWORD){ var l=el('login'), a=el('app'); if(l) l.classList.add('hidden'); if(a) a.classList.remove('hidden'); initApp(); } else { setText('loginMsg','Wrong password'); } }
+window.addEventListener('load', function(){ 
+  var eb=el('enterBtn'); if(eb) eb.onclick=doLogin; 
+  var p=el('pw'); if(p) p.addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); }); 
+  var tp=el('togglePw'); if(tp) tp.onclick=function(){ var i=el('pw'); if(i){ if(i.type==='password'){ i.type='text'; this.textContent='Hide'; } else { i.type='password'; this.textContent='Show'; } } }; 
+});
+</script>
+</body>
+</html>
