@@ -2,65 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Panel | Catfish Empire</title>
+  <title>Catfish Empire Admin</title>
   <style>
     body {
-      background: #111;
-      color: white;
-      font-family: Arial, sans-serif;
+      font-family: sans-serif;
+      background-color: #111;
+      color: #f4f4f4;
       padding: 2rem;
     }
-    input, select, button {
-      padding: 8px;
-      margin: 6px 0;
-      font-size: 1rem;
-      border-radius: 4px;
-    }
-    select, input {
-      width: 200px;
-    }
-    button {
-      background: gold;
-      border: none;
-      cursor: pointer;
-    }
-    .hidden {
-      display: none;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #222;
-      margin-top: 1rem;
-    }
-    th, td {
-      padding: 12px;
-      text-align: center;
-      border: 1px solid #333;
-    }
-    th {
-      background: #333;
-    }
-    #message {
-      margin-top: 10px;
-      color: lightgreen;
-    }
+    .hidden { display: none; }
+    label, input, select { margin: 0.5rem 0; }
+    table { margin-top: 1rem; border-collapse: collapse; }
+    th, td { padding: 0.5rem 1rem; border: 1px solid #fff; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; background: gold; border: none; cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>Admin Login</h1>
-
   <div id="login-section">
-    <input type="text" id="username" placeholder="Username"/><br/>
-    <input type="password" id="password" placeholder="Password"/><br/>
-    <button onclick="login()">Login</button>
+    <input type="password" id="password" placeholder="Enter admin password" />
+    <br />
+    <button id="login-btn">Login</button>
   </div>
 
   <div id="admin-panel" class="hidden">
     <h2>Update Inventory</h2>
-
-    <label>Color:
+    <label>
+      Color:
       <select id="color">
         <option value="Blue">Blue</option>
         <option value="Green">Green</option>
@@ -69,56 +36,37 @@
         <option value="Black">Black</option>
         <option value="Brown">Brown</option>
       </select>
-    </label><br/>
-
-    <label>Qty:
-      <input type="number" id="qty" min="0"/>
-    </label><br/>
-
-    <button onclick="updateInventory()">Update Inventory</button>
+    </label>
+    <br />
+    <label>
+      Quantity:
+      <input type="number" id="qty" min="0" />
+    </label>
+    <br />
+    <button id="update-btn">Update Inventory</button>
     <p id="message"></p>
 
     <h2>Current Inventory</h2>
     <table>
       <thead>
-        <tr>
-          <th>Blue</th>
-          <th>Green</th>
-          <th>Red</th>
-          <th>Silver</th>
-          <th>Black</th>
-          <th>Brown</th>
-          <th>Total Stock</th>
-        </tr>
+        <tr><th>Color</th><th>Quantity</th></tr>
       </thead>
-      <tbody>
-        <tr>
-          <td id="stock-Blue">-</td>
-          <td id="stock-Green">-</td>
-          <td id="stock-Red">-</td>
-          <td id="stock-Silver">-</td>
-          <td id="stock-Black">-</td>
-          <td id="stock-Brown">-</td>
-          <td id="total-stock">-</td>
-        </tr>
-      </tbody>
+      <tbody id="inventory-body"></tbody>
     </table>
 
-    <button onclick="logout()" style="margin-top: 20px;">Logout</button>
+    <button id="logout-btn">Logout</button>
   </div>
 
   <script>
     const backendURL = "https://catfish-stripe-backend.onrender.com";
 
     function login() {
+      const password = document.getElementById("password").value;
       fetch(`${backendURL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          username: document.getElementById("username").value,
-          password: document.getElementById("password").value
-        })
+        body: JSON.stringify({ password }),
       })
       .then(res => res.json())
       .then(data => {
@@ -127,48 +75,48 @@
           document.getElementById("admin-panel").classList.remove("hidden");
           fetchInventory();
         } else {
-          alert("Login failed");
+          alert("Incorrect password");
         }
       });
     }
 
     function fetchInventory() {
       fetch(`${backendURL}/inventory`, {
-        method: "GET",
-        credentials: "include"
+        credentials: "include",
       })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error("Not logged in");
+        return res.json();
+      })
       .then(data => {
-        let total = 0;
-        for (const [color, qty] of Object.entries(data)) {
-          document.getElementById(`stock-${color}`).textContent = qty;
-          total += parseInt(qty);
-        }
-        document.getElementById("total-stock").textContent = total;
+        const tbody = document.getElementById("inventory-body");
+        tbody.innerHTML = "";
+        Object.entries(data).forEach(([color, qty]) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td>${color}</td><td>${qty}</td>`;
+          tbody.appendChild(row);
+        });
+      })
+      .catch(err => {
+        document.getElementById("inventory-body").innerHTML = `<tr><td colspan="2">${err.message}</td></tr>`;
       });
     }
 
     function updateInventory() {
       const color = document.getElementById("color").value;
-      const qty = parseInt(document.getElementById("qty").value);
-
-      if (!color || isNaN(qty)) {
-        alert("Please fill out both fields.");
-        return;
-      }
-
+      const qty = document.getElementById("qty").value;
       fetch(`${backendURL}/inventory`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ color, qty })
+        body: JSON.stringify({ color, qty }),
       })
       .then(res => res.json())
       .then(data => {
         document.getElementById("message").textContent = data.success
           ? "Inventory updated successfully"
           : "Failed to update inventory";
-        fetchInventory(); // refresh inventory table
+        fetchInventory();
       });
     }
 
@@ -181,6 +129,14 @@
         document.getElementById("login-section").classList.remove("hidden");
       });
     }
+
+    document.getElementById("login-btn").onclick = login;
+    document.getElementById("update-btn").onclick = updateInventory;
+    document.getElementById("logout-btn").onclick = logout;
+
+    document.getElementById("password").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") login();
+    });
   </script>
 </body>
 </html>
